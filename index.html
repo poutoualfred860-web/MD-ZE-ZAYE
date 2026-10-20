@@ -78,7 +78,7 @@ async function loadFixtures(){
  const status=document.getElementById('fixtureStatus'), list=document.getElementById('fixtureList');
  status.textContent='Chargement des matchs depuis football-data.org…'; list.innerHTML='';
  try{
-   const base='https://mimd-ze-zaye-api.poutoualfred860.workers.dev';
+   const base='https://md-ze-zaye.onrender.com.poutoualfred860.workers.dev';
    const url=`${base}/competitions/${encodeURIComponent(league)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`;
    const res=await fetch(url,{headers:{'Accept':'application/json'}});
    const data=await res.json();
