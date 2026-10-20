@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080808">
+<title>MD ZE ZAYE — Analyse Football</title>
+<style>
+:root{--bg:#070707;--panel:#141414;--panel2:#1d1d1d;--gold:#f6c945;--gold2:#b8860b;--text:#f7f4eb;--muted:#aaa69a;--line:#3c3218;--red:#e45d5d}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#211a08 0,#080808 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}header{padding:20px 16px 14px;text-align:center;border-bottom:1px solid var(--line);background:#050505} .crown{font-size:30px;color:var(--gold)}.brand{font-weight:1000;font-size:27px;letter-spacing:1px;color:var(--gold);text-shadow:0 2px 16px #a87b20}.sub{color:#d8d0bd;font-size:12px;letter-spacing:2px}.wrap{max-width:760px;margin:auto;padding:14px 12px 90px}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:14px}.tabs button,.btn{border:1px solid var(--gold2);border-radius:10px;background:#15120a;color:var(--text);padding:10px 13px;font-weight:750;white-space:nowrap}.tabs button.active,.btn.primary{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007}.card{background:linear-gradient(145deg,#181818,#0e0e0e);border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;box-shadow:0 6px 20px #0008}.title{color:var(--gold);font-weight:850;font-size:17px;margin:0 0 10px}label{display:block;color:#d4c9a9;font-size:12px;margin:8px 0 4px}input,select,textarea{width:100%;padding:11px;border-radius:9px;border:1px solid #4b4024;background:#080808;color:white;font:inherit}input[type=file]{padding:8px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45}.hidden{display:none!important}.match{padding:12px;border:1px solid #3a311a;border-radius:11px;margin:8px 0;background:#101010}.match strong{color:var(--gold)}.badge{display:inline-block;border:1px solid #78601d;border-radius:99px;padding:3px 8px;color:var(--gold);font-size:11px}.statrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #29251b}.bar{height:7px;background:#292929;border-radius:10px;overflow:hidden;margin-top:5px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#a87809,#ffe16a)}.bottom{position:fixed;bottom:0;left:0;right:0;background:#050505;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));z-index:3}.bottom button{background:none;border:0;color:#b9b3a2;font-size:12px}.bottom button.active{color:var(--gold)}.empty{color:var(--muted);text-align:center;padding:22px}.warning{border-color:#684d16;color:#e8d8a5;background:#171207;padding:10px;border-radius:10px;font-size:12px}
+</style>
+</head>
+<body>
+<header><div class="crown">♛</div><div class="brand">MD ZE ZAYE</div><div class="sub">ANALYSE • STATISTIQUES • PRONOSTICS</div></header>
+<div class="wrap">
+<div class="tabs" id="tabs"><button class="active" data-page="home">Accueil</button><button data-page="add">Ajouter un match</button><button data-page="history">Historique</button><button data-page="import">Importer CSV</button><button data-page="fixtures">Matchs du jour</button></div>
+<section id="fixtures" class="page hidden"><div class="card"><h2 class="title">Matchs du jour & calendrier</h2>
+<p class="hint">Connexion Internet nécessaire pour charger le calendrier. La disponibilité et la fraîcheur varient selon le championnat et la source.</p>
+<label>Championnat</label><select id="fixtureLeague">
+<option value="PL">Angleterre — Premier League</option><option value="PD">Espagne — La Liga</option><option value="SA">Italie — Serie A</option><option value="BL1">Allemagne — Bundesliga</option><option value="FL1">France — Ligue 1</option><option value="CL">Ligue des Champions UEFA</option><option value="PPL">Portugal — Primeira Liga</option><option value="DED">Pays-Bas — Eredivisie</option>
+</select>
+<label>Date</label><input id="fixtureDate" type="date"/>
+<div class="actions"><button class="btn primary" onclick="loadFixtures()">Charger les matchs</button><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
+<div id="fixtureStatus" class="hint" style="margin-top:10px">Choisis un championnat puis appuie sur « Charger les matchs ».</div><div id="fixtureList"></div>
+</div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Les statistiques détaillées (touches, fautes, tirs, corners, cartons, hors-jeu) ne sont pas incluses dans toutes les offres.</div></section>
+<section id="home" class="page">
+<div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
+<div class="card"><h3 class="title">Marchés couverts</h3><div class="grid"><span class="badge">⚽ Buts</span><span class="badge">🟨 Cartons</span><span class="badge">🎯 Tirs</span><span class="badge">⚑ Fautes</span><span class="badge">↔ Touches</span><span class="badge">⚐ Corners</span><span class="badge">⛳ Hors-jeu</span></div></div>
+<div class="card"><h3 class="title">Derniers matchs</h3><div id="recent" class="empty">Aucun match pour le moment. Ajoute un match ou importe un fichier CSV.</div></div>
+<div class="warning">Les estimations sont des calculs statistiques basés uniquement sur les données enregistrées. Elles ne garantissent pas les résultats. N'invente pas les valeurs manquantes.</div>
+</section>
+<section id="add" class="page hidden"><div class="card"><h2 class="title">Enregistrer un match</h2><form id="matchForm"><div class="grid">
+<div class="full"><label>Compétition</label><input name="league" placeholder="Ex. Ligue 1" /></div>
+<div><label>Équipe à domicile *</label><input name="home" required placeholder="Équipe A"/></div><div><label>Équipe à l'extérieur *</label><input name="away" required placeholder="Équipe B"/></div>
+<div><label>Date du match</label><input name="date" type="date"/></div><div><label>Statut</label><select name="status"><option>Terminé</option><option>À venir</option></select></div>
+<div><label>Buts domicile</label><input name="hg" type="number" min="0" step="1"/></div><div><label>Buts extérieur</label><input name="ag" type="number" min="0" step="1"/></div>
+<div><label>Cartons jaunes domicile</label><input name="hy" type="number" min="0" step="1"/></div><div><label>Cartons jaunes extérieur</label><input name="ay" type="number" min="0" step="1"/></div>
+<div><label>Tirs domicile</label><input name="hs" type="number" min="0"/></div><div><label>Tirs extérieur</label><input name="as" type="number" min="0"/></div>
+<div><label>Fautes domicile</label><input name="hf" type="number" min="0"/></div><div><label>Fautes extérieur</label><input name="af" type="number" min="0"/></div>
+<div><label>Touches domicile</label><input name="ht" type="number" min="0"/></div><div><label>Touches extérieur</label><input name="at" type="number" min="0"/></div>
+<div><label>Corners domicile</label><input name="hc" type="number" min="0"/></div><div><label>Corners extérieur</label><input name="ac" type="number" min="0"/></div>
+<div><label>Hors-jeu domicile</label><input name="ho" type="number" min="0"/></div><div><label>Hors-jeu extérieur</label><input name="ao" type="number" min="0"/></div>
+<div class="full"><label>Notes / source des données</label><textarea name="notes" rows="2" placeholder="Source, contexte, informations utiles…"></textarea></div>
+</div><p class="hint">Seuls les champs renseignés seront analysés. Laisse vide une statistique inconnue.</p><div class="actions"><button class="btn primary" type="submit">Enregistrer le match</button><button class="btn" type="reset">Effacer le formulaire</button></div></form></div></section>
+<section id="history" class="page hidden"><div class="card"><h2 class="title">Historique des matchs</h2><div class="actions"><button class="btn" onclick="exportCSV()">Exporter CSV</button><button class="btn" onclick="clearAll()">Tout supprimer</button></div><div id="historyList"></div></div></section>
+<section id="import" class="page hidden"><div class="card"><h2 class="title">Importer un CSV</h2><p>Choisis un fichier CSV UTF-8. La première ligne doit contenir les noms de colonnes.</p><label>Fichier CSV</label><input type="file" id="csvfile" accept=".csv,text/csv"/><div class="actions"><button class="btn primary" onclick="importCSV()">Importer les matchs</button><button class="btn" onclick="downloadTemplate()">Télécharger un modèle CSV</button></div><p class="hint">Colonnes recommandées : league,home,away,date,status,hg,ag,hy,ay,hs,as,hf,af,ht,at,hc,ac,ho,ao,notes. Les nombres peuvent rester vides.</p><div id="importMsg" class="hint"></div></div></section>
+
+
+
+<section id="analysis" class="page hidden"><div class="card"><h2 class="title">Analyse statistique</h2><p class="hint">Les moyennes sont calculées uniquement sur les valeurs connues des matchs enregistrés.</p><label>Marché à analyser</label><select id="market"><option value="goals">Buts</option><option value="cards">Cartons jaunes</option><option value="shots">Tirs</option><option value="fouls">Fautes</option><option value="throws">Touches</option><option value="corners">Corners</option><option value="offsides">Hors-jeu</option></select><div id="analysisResult"></div></div></section>
+</div>
+<nav class="bottom"><button class="active" data-page="home">⌂<br>Accueil</button><button data-page="add">＋<br>Ajouter</button><button data-page="analysis">▥<br>Analyses</button><button data-page="fixtures">⚽<br>Matchs</button><button data-page="history">◷<br>Historique</button></nav>
+<script>
+const KEY='mdzz_matches_v1'; let matches=load(); let loadedFixtures=[]; document.getElementById('fixtureDate').value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}}
+function save(){localStorage.setItem(KEY,JSON.stringify(matches));render()}
+function show(id){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));if(id==='analysis')renderAnalysis();window.scrollTo(0,0)}
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.page)));
+const form=document.getElementById('matchForm');
+form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),m={id:Date.now()};for(const [k,v] of fd.entries()){if(['hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao'].includes(k))m[k]=v.trim()===''?null:Number(v);else m[k]=v.trim()}matches.unshift(m);save();form.reset();show('history')});
+function render(){document.getElementById('count').textContent=matches.length;document.getElementById('recent').innerHTML=matches.length?matches.slice(0,4).map(card).join(''):'Aucun match pour le moment. Ajoute un match ou importe un fichier CSV.';document.getElementById('historyList').innerHTML=matches.length?matches.map(card).join(''):'<div class="empty">Historique vide.</div>';renderAnalysis()}
+function card(m){return `<div class="match"><strong>${esc(m.home||'?')} — ${esc(m.away||'?')}</strong><div class="hint">${esc(m.league||'Compétition non précisée')} · ${esc(m.date||'Date inconnue')} · ${esc(m.status||'')}</div><div style="margin-top:6px">${m.hg==null||m.ag==null?'Score : non renseigné':`Score : <b>${m.hg} - ${m.ag}</b>`}</div><div class="actions"><button class="btn" onclick="analyzeMatch(${m.id})">Analyser</button><button class="btn" onclick="delMatch(${m.id})">Supprimer</button></div><div id="detail-${m.id}"></div></div>`}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function delMatch(id){if(confirm('Supprimer ce match ?')){matches=matches.filter(m=>m.id!==id);save()}}
+function clearAll(){if(confirm('Supprimer tout l’historique ?')){matches=[];save()}}
+const markets={goals:{label:'Buts',h:'hg',a:'ag'},cards:{label:'Cartons jaunes',h:'hy',a:'ay'},shots:{label:'Tirs',h:'hs',a:'as'},fouls:{label:'Fautes',h:'hf',a:'af'},throws:{label:'Touches',h:'ht',a:'at'},corners:{label:'Corners',h:'hc',a:'ac'},offsides:{label:'Hors-jeu',h:'ho',a:'ao'}};
+function avg(arr){let x=arr.filter(v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))).map(Number);return x.length?{v:x.reduce((a,b)=>a+b,0)/x.length,n:x.length}:null}
+function renderAnalysis(){if(!document.getElementById('analysisResult'))return;const key=document.getElementById('market').value,market=markets[key],valid=matches.filter(m=>m[market.h]!=null&&m[market.a]!=null);let h=avg(valid.map(m=>m[market.h])),a=avg(valid.map(m=>m[market.a]));let html=`<div class="match"><div class="hint">Matchs avec données complètes pour ce marché</div><div style="font-size:25px;color:var(--gold);font-weight:900">${valid.length}</div></div>`;if(h&&a){let total=h.v+a.v;html+=`<div class="card"><h3 class="title">Moyennes observées — ${market.label}</h3><div class="statrow"><span>Domicile</span><b>${h.v.toFixed(1)}</b></div><div class="statrow"><span>Extérieur</span><b>${a.v.toFixed(1)}</b></div><div class="statrow"><span>Total moyen</span><b>${total.toFixed(1)}</b></div><div class="bar"><span style="width:${total?Math.max(2,Math.min(100,h.v/total*100)):0}%"></span></div><p class="hint">Ces moyennes décrivent les matchs enregistrés ; elles ne sont pas une probabilité prédictive calibrée. Échantillon : ${valid.length} match(s).</p></div>`}else html+='<div class="empty">Données insuffisantes. Enregistre au moins un match avec les deux valeurs du marché.</div>';document.getElementById('analysisResult').innerHTML=html}
+document.getElementById('market').addEventListener('change',renderAnalysis);
+function analyzeMatch(id){
+ const m=matches.find(x=>x.id===id);if(!m)return;
+ const root=document.getElementById('detail-'+id);if(!root)return;
+ const num=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
+ const pct=v=>(v*100).toFixed(1)+'%';
+ const poisson=(k,lambda)=>{if(lambda<=0)return k===0?1:0;let p=Math.exp(-lambda);for(let i=1;i<=k;i++)p*=lambda/i;return p};
+ const history=matches.filter(x=>x.id!==m.id&&x.status==='Terminé'&&num(x.hg)!==null&&num(x.ag)!==null);
+ const teamHistory=(team,side)=>history.filter(x=>side==='home'?x.home===team:side==='away'?x.away===team:(x.home===team||x.away===team));
+ const goalsFor=(team)=>{const xs=history.filter(x=>x.home===team||x.away===team);const scored=xs.map(x=>x.home===team?num(x.hg):num(x.ag)).filter(v=>v!==null);return scored.length?scored.reduce((a,b)=>a+b,0)/scored.length:null};
+ const goalsAgainst=(team)=>{const xs=history.filter(x=>x.home===team||x.away===team);const vals=xs.map(x=>x.home===team?num(x.ag):num(x.hg)).filter(v=>v!==null);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null};
+ let out='<div class="match"><strong>Résumé des données disponibles</strong>';
+ let known=0;Object.entries(markets).forEach(([k,v])=>{if(num(m[v.h])!==null&&num(m[v.a])!==null){known++;out+=`<div class="statrow"><span>${v.label}</span><b>${num(m[v.h])} - ${num(m[v.a])}</b></div>`}else out+=`<div class="statrow"><span>${v.label}</span><span class="hint">Données manquantes</span></div>`});
+ out+=`<p class="hint">${known} marché(s) sur ${Object.keys(markets).length} disposent de données complètes. Les données manquantes ne sont pas inventées.</p></div>`;
+ const hf=goalsFor(m.home),ha=goalsAgainst(m.home),af=goalsFor(m.away),aa=goalsAgainst(m.away);
+ const sampleHome=history.filter(x=>x.home===m.home||x.away===m.home).length;
+ const sampleAway=history.filter(x=>x.home===m.away||x.away===m.away).length;
+ if([hf,ha,af,aa].every(v=>v!==null)&&sampleHome>=2&&sampleAway>=2){
+   const lh=Math.max(.15,Math.min(4,(hf+aa)/2*1.08));
+   const la=Math.max(.15,Math.min(4,(af+ha)/2*.92));
+   let ph=0,pd=0,pa=0,over15=0,over25=0,btts=0;
+   for(let h=0;h<=10;h++)for(let a=0;a<=10;a++){const p=poisson(h,lh)*poisson(a,la);if(h>a)ph+=p;else if(h===a)pd+=p;else pa+=p;if(h+a>=2)over15+=p;if(h+a>=3)over25+=p;if(h>0&&a>0)btts+=p;}
+   const expected=lh+la;
+   out+=`<div class="card"><h3 class="title">Probabilités estimées</h3><p class="hint">Calculées à partir des buts moyens de l'historique enregistré pour ces équipes. Échantillon : ${sampleHome} match(s) pour ${esc(m.home)} et ${sampleAway} pour ${esc(m.away)}.</p><div class="statrow"><span>Victoire ${esc(m.home)}</span><b>${pct(ph)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,ph*100))}%"></span></div><div class="statrow"><span>Match nul</span><b>${pct(pd)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,pd*100))}%"></span></div><div class="statrow"><span>Victoire ${esc(m.away)}</span><b>${pct(pa)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,pa*100))}%"></span></div><h3 class="title" style="margin-top:14px">Prévisions de buts</h3><div class="statrow"><span>Buts attendus ${esc(m.home)}</span><b>${lh.toFixed(2)}</b></div><div class="statrow"><span>Buts attendus ${esc(m.away)}</span><b>${la.toFixed(2)}</b></div><div class="statrow"><span>Total attendu</span><b>${expected.toFixed(2)}</b></div><div class="statrow"><span>Plus de 1,5 but</span><b>${pct(over15)}</b></div><div class="statrow"><span>Plus de 2,5 buts</span><b>${pct(over25)}</b></div><div class="statrow"><span>Les deux équipes marquent</span><b>${pct(btts)}</b></div><p class="hint">Méthode indicative de type Poisson, non calibrée. Les probabilités ne sont pas des garanties et dépendent de la qualité de l'historique.</p></div>`;
+ }else{
+   out+='<div class="card"><h3 class="title">Probabilités et prévisions</h3><p class="hint">Données insuffisantes pour produire une estimation raisonnable. Enregistre au moins 2 matchs terminés avec scores pour chacune des deux équipes, puis relance l’analyse. Aucun pourcentage fictif ne sera affiché.</p></div>';
+ }
+ const stats=[['Tirs','hs','as'],['Corners','hc','ac'],['Fautes','hf','af'],['Cartons jaunes','hy','ay'],['Touches','ht','at'],['Hors-jeu','ho','ao']];
+ out+='<div class="card"><h3 class="title">Statistiques disponibles</h3>';
+ stats.forEach(([label,h,a])=>{const hv=num(m[h]),av=num(m[a]);out+=`<div class="statrow"><span>${label}</span><b>${hv===null||av===null?'Données manquantes':hv+' - '+av}</b></div>`});
+ out+='<p class="hint">Les statistiques ne sont pas automatiquement fournies pour tous les matchs par la source de calendrier. Renseigne-les manuellement ou importe-les en CSV.</p></div>';
+ root.innerHTML=out;
+}
+function parseCSV(text){let rows=[],row=[],field='',q=false;for(let i=0;i<text.length;i++){let c=text[i],n=text[i+1];if(c==='"'&&q&&n==='"'){field+='"';i++}else if(c==='"'){q=!q}else if((c===','||c===';')&&!q){row.push(field.trim());field=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(field.trim());if(row.some(x=>x!==''))rows.push(row);row=[];field=''}else field+=c}row.push(field.trim());if(row.some(x=>x!==''))rows.push(row);return rows}
+function importCSV(){const file=document.getElementById('csvfile').files[0],msg=document.getElementById('importMsg');if(!file){msg.textContent='Choisis d’abord un fichier CSV.';return}const r=new FileReader();r.onload=()=>{try{const rows=parseCSV(r.result);if(rows.length<2)throw Error('Le fichier ne contient pas de lignes de données.');const heads=rows.shift().map(x=>x.toLowerCase().replace(/^\ufeff/,''));let added=0;rows.forEach(row=>{let m={id:Date.now()+Math.random()};heads.forEach((h,i)=>{let v=row[i]??'';if(['hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao'].includes(h))m[h]=v===''?null:Number(v.replace(',','.'));else if(['league','home','away','date','status','notes'].includes(h))m[h]=v});if(m.home&&m.away){matches.unshift(m);added++}});save();msg.textContent=added+' match(s) importé(s).';}catch(e){msg.textContent='Erreur CSV : '+e.message}};r.readAsText(file,'UTF-8')}
+function downloadTemplate(){const csv='league,home,away,date,status,hg,ag,hy,ay,hs,as,hf,af,ht,at,hc,ac,ho,ao,notes\nLigue 1,Équipe A,Équipe B,2026-10-18,Terminé,2,1,1,2,5,4,12,10,20,22,6,3,1,2,Exemple à remplacer';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='modele_md_ze_zaye.csv';a.click();URL.revokeObjectURL(a.href)}
+function exportCSV(){const keys=['league','home','away','date','status','hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao','notes'];const quote=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const txt=[keys.join(','),...matches.map(m=>keys.map(k=>quote(m[k])).join(','))].join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));a.download='md_ze_zaye_export.csv';a.click();URL.revokeObjectURL(a.href)}
+
+async function loadFixtures(){
+ const league=document.getElementById('fixtureLeague').value;
+ const date=document.getElementById('fixtureDate').value || new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const status=document.getElementById('fixtureStatus'), list=document.getElementById('fixtureList');
+ status.textContent='Chargement des matchs depuis football-data.org…'; list.innerHTML='';
+ try{
+   const base='https://md-ze-zaye.onrender.com';
+   const url=`${base}/competitions/${encodeURIComponent(league)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`;
+   const res=await fetch(url,{headers:{'Accept':'application/json'}});
+   const data=await res.json();
+   if(!res.ok) throw new Error(data.message||data.error||('Erreur HTTP '+res.status));
+   const arr=Array.isArray(data)?data:(data.matches||[]);
+   loadedFixtures=arr.map((x,i)=>{
+     const home=x.homeTeam?.name||'Équipe domicile';
+     const away=x.awayTeam?.name||'Équipe extérieur';
+     const ft=x.score?.fullTime||{};
+     const hg=ft.home??null, ag=ft.away??null;
+     const utc=x.utcDate||'';
+     let kickoff=date;
+     if(utc){const d=new Date(utc);kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);}
+     return {id:'fixture-'+i,league:x.competition?.name||league,competitionLogo:x.competition?.emblem||'',home,away,homeLogo:x.homeTeam?.crest||'',awayLogo:x.awayTeam?.crest||'',date:kickoff,status:x.status||'Programmé',hg,ag};
+   }).filter(x=>x.home!=='Équipe domicile'&&x.away!=='Équipe extérieur');
+   if(!loadedFixtures.length){status.textContent='Aucun match trouvé pour ce championnat à cette date. Essaie une autre date ou une autre compétition.';return}
+   status.textContent=`${loadedFixtures.length} match(s) reçu(s) depuis football-data.org.`;
+   list.innerHTML=loadedFixtures.map((m,i)=>`<div class="match"><div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">${m.competitionLogo?`<img src="${esc(m.competitionLogo)}" alt="" style="width:24px;height:24px;object-fit:contain">`:''}<span class="hint">${esc(m.league)}</span></div><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc(m.homeLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?`${esc(m.hg)} - ${esc(m.ag)}`:'VS'}</b><div class="hint">${esc(m.date)}</div><span class="badge">${esc(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc(m.awayLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.away)}</strong></div></div><div class="actions"><button class="btn" onclick="showFixtureStats(${i})">Voir les statistiques</button><button class="btn" onclick="saveFixture(${i})">Ajouter à mon historique</button></div><div id="fixture-detail-${i}"></div></div>`).join('');
+ }catch(e){status.textContent='Impossible de charger les matchs depuis le serveur MD ZE ZAYE. Vérifie la connexion Internet. Détail : '+e.message;}
+}
+
+function showFixtureStats(i){
+ const f=loadedFixtures[i],root=document.getElementById('fixture-detail-'+i);if(!f||!root)return;
+ const n=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
+ const done=matches.filter(x=>String(x.status||'').toLowerCase().includes('termin')&&n(x.hg)!==null&&n(x.ag)!==null);
+ function recent(team){return done.filter(x=>x.home===team||x.away===team).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5)}
+ function summarize(team){const xs=recent(team);let gf=0,ga=0,w=0,d=0,l=0;xs.forEach(x=>{let h=x.home===team,sc=n(h?x.hg:x.ag),co=n(h?x.ag:x.hg);gf+=sc;ga+=co;if(sc>co)w++;else if(sc===co)d++;else l++});return {xs,gf,ga,w,d,l,avgf:xs.length?gf/xs.length:null,avga:xs.length?ga/xs.length:null}}
+ const a=summarize(f.home),b=summarize(f.away);
+ function teamHtml(name,t){return `<div class="card"><h3 class="title">${esc(name)}</h3><div class="statrow"><span>Matchs récents disponibles</span><b>${t.xs.length}/5</b></div><div class="statrow"><span>Victoires / Nuls / Défaites</span><b>${t.w} / ${t.d} / ${t.l}</b></div><div class="statrow"><span>Buts marqués (total)</span><b>${t.xs.length?t.gf:'Indisponible'}</b></div><div class="statrow"><span>Buts encaissés (total)</span><b>${t.xs.length?t.ga:'Indisponible'}</b></div><div class="statrow"><span>Moyenne buts marqués</span><b>${t.avgf===null?'Indisponible':t.avgf.toFixed(2)}</b></div><div class="statrow"><span>Moyenne buts encaissés</span><b>${t.avga===null?'Indisponible':t.avga.toFixed(2)}</b></div><h4>Derniers matchs enregistrés</h4>${t.xs.length?t.xs.map(x=>`<div class="statrow"><span>${esc(x.date||'Date inconnue')} · ${esc(x.home)} - ${esc(x.away)}</span><b>${n(x.hg)} - ${n(x.ag)}</b></div>`).join(''):'<p class="hint">Aucun historique récent disponible dans l’application.</p>'}</div>`}
+ const statDefs=[['Tirs','hs','as'],['Corners','hc','ac'],['Fautes','hf','af'],['Cartons jaunes','hy','ay'],['Touches','ht','at'],['Hors-jeu','ho','ao']];
+ root.innerHTML=`<div class="card"><h3 class="title">Comparaison des équipes</h3><p class="hint">Ces données viennent de l’historique enregistré dans l’application. Les cinq derniers matchs ne peuvent être affichés que s’ils sont présents ici.</p><div class="grid">${teamHtml(f.home,a)}${teamHtml(f.away,b)}</div><h3 class="title">Statistiques du match sélectionné</h3>${statDefs.map(([label,h,aw])=>`<div class="statrow"><span>${label}</span><b>Indisponible pour ce match</b></div>`).join('')}<p class="hint">Les statistiques détaillées et l’historique automatique doivent être fournis par le serveur ou une source qui les prend en charge. Elles ne sont pas inventées.</p></div>`;
+}
+
+function saveFixture(i){
+ const f=loadedFixtures[i];if(!f)return;
+ if(matches.some(m=>m.home===f.home&&m.away===f.away&&String(m.date||'').slice(0,10)===String(f.date||'').slice(0,10))){alert('Ce match est déjà dans ton historique.');return}
+ matches.unshift({id:Date.now()+Math.random(),league:f.league,home:f.home,away:f.away,date:String(f.date||'').slice(0,10),status:f.status,hg:f.hg==null?null:Number(f.hg),ag:f.ag==null?null:Number(f.ag),hy:null,ay:null,hs:null,as:null,hf:null,af:null,ht:null,at:null,hc:null,ac:null,ho:null,ao:null,notes:'Calendrier importé depuis une source publique; statistiques détaillées non fournies automatiquement.'});
+ save();alert('Match ajouté. Les statistiques non fournies restent vides.');
+}
+function saveVisibleFixtures(){if(!loadedFixtures.length){alert('Charge d’abord les matchs.');return}loadedFixtures.forEach((f,i)=>saveFixture(i));}
+
+
+
+
+render();
+</script>
+</body></html>
