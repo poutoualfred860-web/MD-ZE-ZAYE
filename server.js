@@ -4,6 +4,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TOKEN = process.env.FOOTBALL_DATA_TOKEN;
 
+// Dates par défaut : aujourd'hui jusqu'aux 7 prochains jours.
+// Les paramètres dateFrom et dateTo fournis par le site restent prioritaires.
+function defaultDateRange() {
+  const today = new Date();
+  const dateFrom = today.toISOString().slice(0, 10);
+  const end = new Date(today);
+  end.setUTCDate(end.getUTCDate() + 7);
+  const dateTo = end.toISOString().slice(0, 10);
+  return { dateFrom, dateTo };
+}
+
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -32,9 +43,9 @@ app.get("/matches", async (req, res) => {
       });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
-    const startDate = req.query.dateFrom || today;
-    const endDate = req.query.dateTo || today;
+    const defaults = defaultDateRange();
+    const startDate = req.query.dateFrom || defaults.dateFrom;
+    const endDate = req.query.dateTo || defaults.dateTo;
 
     const url =
       "https://api.football-data.org/v4/matches" +
@@ -76,10 +87,9 @@ app.get("/competitions/:code/matches", async (req, res) => {
     }
 
     const code = encodeURIComponent(req.params.code);
-    const today = new Date().toISOString().slice(0, 10);
-
-    const startDate = req.query.dateFrom || today;
-    const endDate = req.query.dateTo || today;
+    const defaults = defaultDateRange();
+    const startDate = req.query.dateFrom || defaults.dateFrom;
+    const endDate = req.query.dateTo || defaults.dateTo;
 
     const url =
       "https://api.football-data.org/v4/competitions/" +
