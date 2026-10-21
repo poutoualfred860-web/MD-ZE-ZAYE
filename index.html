@@ -31,7 +31,7 @@
 </select>
 <label>Date</label><input id="fixtureDate" type="date"/>
 <div class="actions"><button class="btn primary" onclick="loadFixtures()">Charger les matchs</button><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
-<div id="fixtureStatus" class="hint" style="margin-top:10px">Choisis un championnat puis appuie sur « Charger les matchs ».</div><div id="fixtureList"></div>
+<div id="fixtureStatus" class="hint" style="margin-top:10px">Coche les championnats puis charge les matchs.</div><div id="fixtureList"></div><div class="actions"><button id="startFilterBtn" class="btn primary" onclick="startFilterWithFixtures()" disabled>Démarrer → Envoyer les matchs au Filtre</button></div>
 </div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats). Pour la Ligue des Champions, ce sont les moyennes du championnat national de chaque club. Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
 <section id="home" class="page hidden">
 <div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
@@ -684,6 +684,7 @@ render();
  window.loadFixtures=async function(){
    const codes=selectedCodes(), date=document.getElementById('fixtureDate').value||today();
    const status=document.getElementById('fixtureStatus'),list=document.getElementById('fixtureList');
+   const startBtn=document.getElementById('startFilterBtn');if(startBtn)startBtn.disabled=true;
    if(!codes.length){status.textContent='Coche au moins un championnat.';return}
    status.textContent='Chargement automatique des championnats sélectionnés…';list.innerHTML='';
    const all=[];
@@ -703,8 +704,16 @@ render();
    loadedFixtures=all;
    if(!all.length){status.textContent='Aucun match trouvé pour les championnats cochés à cette date, ou la source ne les rend pas disponibles.';return}
    status.textContent=`${all.length} match(s) chargé(s) dans ${codes.length} championnat(s).`;
+   const startBtn=document.getElementById('startFilterBtn');if(startBtn)startBtn.disabled=false;
    list.innerHTML=all.map((m,i)=>`<div class="match" onclick="toggleFixtureStats(${i})"><div class="hint">${esc2(m.league)}</div><div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc2(m.homeLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?esc2(m.hg)+' - '+esc2(m.ag):'VS'}</b><div class="hint">${esc2(m.date)}</div><span class="badge">${esc2(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc2(m.awayLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.away)}</strong></div></div><div class="actions"><button class="btn" onclick="event.stopPropagation();toggleFixtureStats(${i})">Analyser</button><button class="btn" onclick="event.stopPropagation();saveFixture(${i})">Ajouter à l’historique</button></div><div id="fixture-detail-${i}"></div></div>`).join('');
    window.__mdzzFiltered=[];
+ };
+ window.startFilterWithFixtures=function(){
+   if(!loadedFixtures.length){alert('Charge d’abord les matchs du jour.');return}
+   window.__mdzzFilterInput=loadedFixtures.slice();
+   const status=document.getElementById('filterStatus');
+   if(status)status.textContent=loadedFixtures.length+' match(s) du jour transmis au Filtre. Choisis un marché puis appuie sur « Filtrer les matchs chargés ». ';
+   if(typeof window.show==='function')window.show('filter');
  };
  window.runMarketFilter=async function(){
    const status=document.getElementById('filterStatus'),out=document.getElementById('filterList');
