@@ -129,67 +129,40 @@ function downloadTemplate(){const csv='league,home,away,date,status,hg,ag,hy,ay,
 function exportCSV(){const keys=['league','home','away','date','status','hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao','notes'];const quote=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const txt=[keys.join(','),...matches.map(m=>keys.map(k=>quote(m[k])).join(','))].join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));a.download='md_ze_zaye_export.csv';a.click();URL.revokeObjectURL(a.href)}
 
 async function loadFixtures(){
- const league=document.getElementById('fixtureLeague').value;
  const date=document.getElementById('fixtureDate').value || new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const status=document.getElementById('fixtureStatus'), list=document.getElementById('fixtureList');
- status.textContent='Chargement des matchs depuis football-data.org…'; list.innerHTML='';
- try{
-   const base='https://md-ze-zaye.onrender.com';
-   const url=`${base}/competitions/${encodeURIComponent(league)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`;
-   const res=await fetch(url,{headers:{'Accept':'application/json'}});
-   const data=await res.json();
-   if(!res.ok) throw new Error(data.message||data.error||('Erreur HTTP '+res.status));
-   const arr=Array.isArray(data)?data:(data.matches||[]);
-   loadedFixtures=arr.map((x,i)=>{
-     const home=x.homeTeam?.name||'Équipe domicile';
-     const away=x.awayTeam?.name||'Équipe extérieur';
-     const ft=x.score?.fullTime||{};
-     const hg=ft.home??null, ag=ft.away??null;
-     const utc=x.utcDate||'';
-     let kickoff=date;
-     if(utc){const d=new Date(utc);kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);}
-     return {id:'fixture-'+i,apiId:x.id,homeId:x.homeTeam?.id||null,awayId:x.awayTeam?.id||null,league:x.competition?.name||league,competitionLogo:x.competition?.emblem||'',home,away,homeLogo:x.homeTeam?.crest||'',awayLogo:x.awayTeam?.crest||'',date:kickoff,status:x.status||'Programmé',hg,ag};
-   }).filter(x=>x.home!=='Équipe domicile'&&x.away!=='Équipe extérieur');
-   if(!loadedFixtures.length){status.textContent='Aucun match trouvé pour ce championnat à cette date. Essaie une autre date ou une autre compétition.';return}
-   status.textContent=`${loadedFixtures.length} match(s) reçu(s) depuis football-data.org.`;
-   list.innerHTML=loadedFixtures.map((m,i)=>`<div class="match" onclick="toggleFixtureStats(${i})"><div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">${m.competitionLogo?`<img src="${esc(m.competitionLogo)}" alt="" style="width:24px;height:24px;object-fit:contain">`:''}<span class="hint">${esc(m.league)}</span></div><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc(m.homeLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?`${esc(m.hg)} - ${esc(m.ag)}`:'VS'}</b><div class="hint">${esc(m.date)}</div><span class="badge">${esc(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc(m.awayLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.away)}</strong></div></div><div class="actions"><button class="btn" onclick="event.stopPropagation();toggleFixtureStats(${i})">Voir les statistiques</button><button class="btn" onclick="event.stopPropagation();saveFixture(${i})">Ajouter à mon historique</button></div><div id="fixture-detail-${i}"></div></div>`).join('');
- }catch(e){status.textContent='Impossible de charger les matchs depuis le serveur MD ZE ZAYE. Vérifie la connexion Internet. Détail : '+e.message;}
-}
-
-async function toggleFixtureStats(i){
- const root=document.getElementById('fixture-detail-'+i);if(!root)return;
- if(root.dataset.open==='yes'){root.innerHTML='';root.dataset.open='no';return;}
- root.dataset.open='yes';await showFixtureStats(i);
-}
-async function showFixtureStats(i){
- const f=loadedFixtures[i],root=document.getElementById('fixture-detail-'+i);if(!f||!root)return;
- root.innerHTML='<div class="card"><p class="hint">Chargement des statistiques…</p></div>';
- const n=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
- const done=matches.filter(x=>String(x.status||'').toLowerCase().includes('termin')&&n(x.hg)!==null&&n(x.ag)!==null);
- function localRecent(team){return done.filter(x=>x.home===team||x.away===team).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,5)}
- async function fetchRecent(teamId){
-  if(!teamId)return null;
-  try{
-   const r=await fetch('https://md-ze-zaye.onrender.com/teams/'+encodeURIComponent(teamId)+'/matches?status=FINISHED&limit=5');
-   const d=await r.json();if(!r.ok)return null;
-   return (d.matches||[]).filter(x=>x.status==='FINISHED').slice(-5).reverse().map(x=>({home:x.homeTeam?.name||'',away:x.awayTeam?.name||'',date:(x.utcDate||'').slice(0,10),hg:x.score?.fullTime?.home??null,ag:x.score?.fullTime?.away??null,status:'Terminé'})).filter(x=>x.home&&x.away&&x.hg!==null&&x.ag!==null);
-  }catch(e){return null}
+ const checks=Array.from(document.querySelectorAll('#leagueChecks input[type="checkbox"]:checked'));
+ if(!checks.length){loadedFixtures=[];list.innerHTML='';status.textContent='Coche au moins un championnat.';const b=document.getElementById('startFilterBtn');if(b)b.disabled=true;return}
+ const base='https://md-ze-zaye.onrender.com';
+ const all=[]; list.innerHTML=''; status.textContent='Chargement des matchs pour '+checks.length+' championnat(s)…';
+ const labels={PL:'Angleterre — Premier League',PD:'Espagne — La Liga',SA:'Italie — Serie A',BL1:'Allemagne — Bundesliga',FL1:'France — Ligue 1',CL:'Ligue des Champions UEFA',PPL:'Portugal — Primeira Liga',DED:'Pays-Bas — Eredivisie'};
+ for(const check of checks){
+   const code=check.value;
+   const section=document.createElement('div');
+   section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||check.parentElement.textContent.trim())+'</h3><div class="hint">Chargement…</div>';
+   list.appendChild(section);
+   try{
+     const url=`${base}/competitions/${encodeURIComponent(code)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`;
+     const res=await fetch(url,{headers:{'Accept':'application/json'}});
+     const data=await res.json();
+     if(!res.ok) throw new Error(data.message||data.error||('Erreur HTTP '+res.status));
+     const arr=Array.isArray(data)?data:(Array.isArray(data.matches)?data.matches:[]);
+     const fixtures=arr.map((x,i)=>{
+       const ft=x.score?.fullTime||{}, utc=x.utcDate||'';
+       let kickoff=date;
+       if(utc){kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(utc))}
+       return {id:code+'-'+i,code,iso:date,league:x.competition?.name||labels[code]||code,competitionLogo:x.competition?.emblem||'',home:x.homeTeam?.name||'',away:x.awayTeam?.name||'',homeId:x.homeTeam?.id||null,awayId:x.awayTeam?.id||null,homeLogo:x.homeTeam?.crest||'',awayLogo:x.awayTeam?.crest||'',date:kickoff,status:x.status||'Programmé',hg:ft.home??null,ag:ft.away??null};
+     }).filter(x=>x.home&&x.away);
+     all.push(...fixtures);
+     section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||check.parentElement.textContent.trim())+'</h3>'+(fixtures.length?fixtures.map((m)=>`<div class="match"><div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">${m.competitionLogo?`<img src="${esc(m.competitionLogo)}" alt="" style="width:24px;height:24px;object-fit:contain">`:''}<span class="hint">${esc(m.league)}</span></div><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc(m.homeLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?`${esc(m.hg)} - ${esc(m.ag)}`:'VS'}</b><div class="hint">${esc(m.date)}</div><span class="badge">${esc(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc(m.awayLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.away)}</strong></div></div><div id="fixture-detail-${all.indexOf(m)}"></div><button class="btn" onclick="showFixtureStats(${all.indexOf(m)})">Voir les statistiques</button></div>`).join(''):'<p class="hint">Aucun match disponible pour cette date dans ce championnat.</p>');
+   }catch(e){section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||code)+'</h3><p class="hint">Impossible de charger ce championnat : '+esc(e.message)+'</p>'}
  }
- const [hx,ax]=await Promise.all([fetchRecent(f.homeId),fetchRecent(f.awayId)]);
- const homeXs=hx||localRecent(f.home),awayXs=ax||localRecent(f.away);
- function summarize(xs,team){let gf=0,ga=0,w=0,d=0,l=0;xs.forEach(x=>{const home=x.home===team,sc=n(home?x.hg:x.ag),co=n(home?x.ag:x.hg);if(sc===null||co===null)return;gf+=sc;ga+=co;if(sc>co)w++;else if(sc===co)d++;else l++});return {xs,gf,ga,w,d,l,avgf:xs.length?gf/xs.length:null,avga:xs.length?ga/xs.length:null}}
- function teamHtml(name,t){return `<div class="card"><h3 class="title">${esc(name)}</h3><div class="statrow"><span>Matchs récents</span><b>${t.xs.length}/5</b></div><div class="statrow"><span>Victoires / Nuls / Défaites</span><b>${t.w} / ${t.d} / ${t.l}</b></div><div class="statrow"><span>Buts marqués</span><b>${t.xs.length?t.gf:'Indisponible'}</b></div><div class="statrow"><span>Buts encaissés</span><b>${t.xs.length?t.ga:'Indisponible'}</b></div><div class="statrow"><span>Moyenne buts marqués</span><b>${t.avgf===null?'Indisponible':t.avgf.toFixed(2)}</b></div><div class="statrow"><span>Moyenne buts encaissés</span><b>${t.avga===null?'Indisponible':t.avga.toFixed(2)}</b></div><h4>Derniers matchs</h4>${t.xs.length?t.xs.map(x=>`<div class="statrow"><span>${esc(x.date||'Date inconnue')} · ${esc(x.home)} - ${esc(x.away)}</span><b>${n(x.hg)} - ${n(x.ag)}</b></div>`).join(''):'<p class="hint">Aucun historique récent disponible dans la source ou l’historique local.</p>'}</div>`}
- const a=summarize(homeXs,f.home),b=summarize(awayXs,f.away);
- const stats=[['Tirs','hs','as'],['Corners','hc','ac'],['Fautes','hf','af'],['Cartons jaunes','hy','ay'],['Touches','ht','at'],['Hors-jeu','ho','ao']];
- root.innerHTML=`<div class="card"><h3 class="title">Statistiques du match</h3><p class="hint">${esc(f.home)} — ${esc(f.away)} · ${esc(f.date)}</p><div class="grid">${teamHtml(f.home,a)}${teamHtml(f.away,b)}</div><h3 class="title">Statistiques détaillées du match</h3>${stats.map(([label])=>`<div class="statrow"><span>${label}</span><b>Indisponible pour ce match</b></div>`).join('')}<p class="hint">Les statistiques détaillées ne sont montrées que si la source les fournit. Aucune valeur n’est inventée. Si aucun historique automatique ne charge, le serveur Render doit aussi être mis à jour pour prendre en charge /teams/:id/matches.</p><button class="btn" onclick="event.stopPropagation();toggleFixtureStats(${i})">Fermer les statistiques</button></div>`;
+ loadedFixtures=all;
+ const b=document.getElementById('startFilterBtn');if(b)b.disabled=!all.length;
+ status.textContent=all.length+' match(s) chargé(s) dans '+checks.length+' championnat(s).';
+ window.__mdzzFilterInput=all.slice();
 }
 
-function saveFixture(i){
- const f=loadedFixtures[i];if(!f)return;
- if(matches.some(m=>m.home===f.home&&m.away===f.away&&String(m.date||'').slice(0,10)===String(f.date||'').slice(0,10))){alert('Ce match est déjà dans ton historique.');return}
- matches.unshift({id:Date.now()+Math.random(),league:f.league,home:f.home,away:f.away,date:String(f.date||'').slice(0,10),status:f.status,hg:f.hg==null?null:Number(f.hg),ag:f.ag==null?null:Number(f.ag),hy:null,ay:null,hs:null,as:null,hf:null,af:null,ht:null,at:null,hc:null,ac:null,ho:null,ao:null,notes:'Calendrier importé depuis une source publique; statistiques détaillées non fournies automatiquement.'});
- save();alert('Match ajouté. Les statistiques non fournies restent vides.');
-}
 function saveVisibleFixtures(){if(!loadedFixtures.length){alert('Charge d’abord les matchs.');return}loadedFixtures.forEach((f,i)=>saveFixture(i));}
 
 
@@ -678,6 +651,12 @@ render();
  const BASE='https://md-ze-zaye.onrender.com';
  const oldLoad=window.loadFixtures;
  const selectedCodes=()=>Array.from(document.querySelectorAll('#leagueChecks input:checked')).map(x=>x.value);
+let autoLoadTimer=null;
+function scheduleAutoLoad(){clearTimeout(autoLoadTimer);autoLoadTimer=setTimeout(()=>loadFixtures(),300);}
+document.addEventListener('change',function(e){
+ if(e.target && (e.target.matches('#leagueChecks input[type="checkbox"]') || e.target.matches('#fixtureDate'))) scheduleAutoLoad();
+});
+
  const names={PL:'Premier League',PD:'La Liga',SA:'Serie A',BL1:'Bundesliga',FL1:'Ligue 1',CL:'Ligue des Champions UEFA',PPL:'Primeira Liga',DED:'Eredivisie'};
  function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
  function esc2(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
