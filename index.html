@@ -26,12 +26,12 @@
 <label><input type="checkbox" value="PPL"> Portugal — Primeira Liga</label>
 <label><input type="checkbox" value="DED"> Pays-Bas — Eredivisie</label>
 </div>
-<label>Championnat utilisé par le chargement (compatibilité)</label><select id="fixtureLeague" class="hidden">
+<select id="fixtureLeague" class="hidden" aria-hidden="true">
 <option value="PL">Angleterre — Premier League</option><option value="PD">Espagne — La Liga</option><option value="SA">Italie — Serie A</option><option value="BL1">Allemagne — Bundesliga</option><option value="FL1">France — Ligue 1</option><option value="CL">Ligue des Champions UEFA</option><option value="PPL">Portugal — Primeira Liga</option><option value="DED">Pays-Bas — Eredivisie</option>
 </select>
 <label>Date</label><input id="fixtureDate" type="date"/>
-<div class="actions"><button class="btn primary" onclick="loadFixtures()">Charger les matchs</button><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
-<div id="fixtureStatus" class="hint" style="margin-top:10px">Coche les championnats puis charge les matchs.</div><div id="fixtureList"></div><div class="actions"><button id="startFilterBtn" class="btn primary" onclick="startFilterWithFixtures()" disabled>Démarrer → Envoyer les matchs au Filtre</button></div>
+<div class="actions"><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
+<div id="fixtureStatus" class="hint" style="margin-top:10px">Coche un ou plusieurs championnats : les matchs se chargent automatiquement.</div><div id="fixtureList"></div><div class="actions"><button id="startFilterBtn" class="btn primary" onclick="startFilterWithFixtures()" disabled>Démarrer → Envoyer les matchs au Filtre</button></div>
 </div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats). Pour la Ligue des Champions, ce sont les moyennes du championnat national de chaque club. Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
 <section id="home" class="page hidden">
 <div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
@@ -734,3 +734,5 @@ document.addEventListener('change',function(e){
 </script>
 
 </body></html>
+
+window.addEventListener('load',function(){scheduleAutoLoad();});
