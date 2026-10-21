@@ -79,7 +79,7 @@ input[type=date]{padding:10px;border-radius:9px;border:1px solid #4b4024;backgro
       <button class="btn" onclick="changeDay(1)" aria-label="Jour suivant">▶</button>
       <button class="btn" onclick="loadDay()">Actualiser</button>
     </div>
-    <p class="hint" style="margin:10px 0 0">Tous les championnats et compétitions disponibles se chargent automatiquement.</p>
+    <p class="hint" style="margin:10px 0 0">Tous les championnats et compétitions disponibles se chargent automatiquement. · Version 2</p>
   </div>
   <div id="fixturesBody"></div>
 </section>
@@ -182,11 +182,35 @@ async function api(path, opts, tries) {
 }
 
 // ---------- Matchs du jour ----------
+let dayDiag = [];
+async function fetchDay() {
+  const diag = [], q = 'dateFrom=' + encodeURIComponent(date) + '&dateTo=' + encodeURIComponent(date);
+  let list = [];
+  try { const d = await api('/matches?' + q); list = d.matches || []; diag.push('Toutes compétitions : ' + list.length + ' match(s)'); }
+  catch (e) { diag.push('Toutes compétitions : ' + e.message); }
+  if (!list.length) {
+    const queue = ['PL', 'ELC', 'PD', 'SA', 'BL1', 'FL1', 'PPL', 'DED', 'CL', 'BSA', 'WC', 'EC'], out = [];
+    await Promise.all([1, 2, 3].map(async () => {
+      while (queue.length) {
+        const c = queue.shift();
+        try {
+          const d = await api('/competitions/' + c + '/matches?' + q, null, 1), ms = d.matches || [];
+          ms.forEach(m => out.push(Object.assign({}, m, { competition: Object.assign({ code: c }, m.competition || {}) })));
+          diag.push(c + ' : ' + ms.length);
+        } catch (e) { diag.push(c + ' : ' + e.message); }
+      }
+    }));
+    list = out;
+  }
+  const seen = new Set();
+  return { list: list.filter(m => !seen.has(m.id) && seen.add(m.id)), diag };
+}
+
 async function loadDay() {
-  dayState = 'loading'; dayError = ''; renderAll();
+  dayState = 'loading'; dayError = ''; dayDiag = []; renderAll();
   try {
-    const d = await api('/matches?dateFrom=' + encodeURIComponent(date) + '&dateTo=' + encodeURIComponent(date));
-    fixtures = (d.matches || []).map(x => ({
+    const r = await fetchDay(); dayDiag = r.diag;
+    fixtures = r.list.map(x => ({
       id: String(x.id), code: (x.competition && x.competition.code) || '', comp: (x.competition && x.competition.name) || '',
       emblem: (x.competition && x.competition.emblem) || '', utc: x.utcDate || '', status: x.status || '',
       home: (x.homeTeam && x.homeTeam.name) || '', away: (x.awayTeam && x.awayTeam.name) || '',
@@ -223,8 +247,8 @@ function renderFixtures() {
   $('dayInput').value = date;
   let h = '';
   if (dayState === 'loading') h = '<div class="card empty">Chargement des matchs… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</div>';
-  else if (dayState === 'error') h = '<div class="card"><div class="warning">Impossible de charger les matchs : ' + esc(dayError) + '</div><button class="btn primary" onclick="loadDay()">Réessayer</button></div>';
-  else if (!fixtures.length) h = '<div class="card empty">Aucun match trouvé pour cette date dans les compétitions disponibles.</div>';
+  else if (dayState === 'error') h = '<div class="card"><div class="warning">Impossible de charger les matchs : ' + esc(dayError) + '</div><div class="hint">' + dayDiag.map(esc).join('<br>') + '</div><button class="btn primary" onclick="loadDay()">Réessayer</button></div>';
+  else if (!fixtures.length) h = '<div class="card empty">Aucun match trouvé pour cette date dans les compétitions disponibles.<br>Essaie les flèches ◀ ▶ pour changer de jour.</div><div class="card"><div class="hint"><b>Détails techniques</b><br>' + dayDiag.map(esc).join('<br>') + '</div></div>';
   else {
     h = '<div class="card"><div class="hint">' + fixtures.length + ' match(s) · ' + groupByComp(fixtures).length + ' compétition(s)</div>' +
       groupByComp(fixtures).map(g => '<div class="grp">' + (g.emblem ? '<img src="' + esc(g.emblem) + '" alt="">' : '') + esc(compLabel(g.code, g.name)) + '</div>' + g.items.map(f => matchRow(f)).join('')).join('') + '</div>';
