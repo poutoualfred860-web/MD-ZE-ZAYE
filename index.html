@@ -689,11 +689,11 @@ render();
    status.textContent='Chargement automatique des championnats sélectionnés…';list.innerHTML='';
    const all=[];
    for(const code of codes){
-     document.getElementById('fixtureLeague').value=code;
      try{
        const r=await fetch(`${BASE}/competitions/${encodeURIComponent(code)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`,{headers:{Accept:'application/json'}});
-       const d=await r.json();if(!r.ok)throw Error(d.error||'Erreur serveur');
-       (d.matches||[]).forEach(x=>{
+       const d=await r.json();if(!r.ok)throw Error(d.error||d.message||'Erreur serveur');
+       const matches=Array.isArray(d)?d:(Array.isArray(d.matches)?d.matches:[]);
+       matches.forEach(x=>{
          if(!x.homeTeam?.name||!x.awayTeam?.name)return;
          const ft=x.score?.fullTime||{},utc=x.utcDate||'';
          let kickoff=date;if(utc){kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(utc))}
