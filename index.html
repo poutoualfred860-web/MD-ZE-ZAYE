@@ -21,7 +21,7 @@
 <label>Date</label><input id="fixtureDate" type="date"/>
 <div class="actions"><button class="btn primary" onclick="loadFixtures()">Charger les matchs</button><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
 <div id="fixtureStatus" class="hint" style="margin-top:10px">Choisis un championnat puis appuie sur « Charger les matchs ».</div><div id="fixtureList"></div>
-</div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats uniquement). Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
+</div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats). Pour la Ligue des Champions, ce sont les moyennes du championnat national de chaque club. Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
 <section id="home" class="page">
 <div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
 <div class="card"><h3 class="title">Marchés couverts</h3><div class="grid"><span class="badge">⚽ Buts</span><span class="badge">🟨 Cartons</span><span class="badge">🎯 Tirs</span><span class="badge">⚑ Fautes</span><span class="badge">↔ Touches</span><span class="badge">⚐ Corners</span><span class="badge">⛳ Hors-jeu</span></div></div>
@@ -282,20 +282,45 @@ render();
     return [ph, 100 - ph - pa, pa];
   }
 
+  function isCross(s) {
+    return !!(s && (s.cross || (s.home && s.away && s.home.league && s.away.league && s.home.league !== s.away.league)));
+  }
+
+  function goalMarkets(lh, la) {
+    var o15 = 0, o25 = 0, bt = 0, tot = 0;
+    for (var i = 0; i <= 10; i++) {
+      for (var j = 0; j <= 10; j++) {
+        var p = pois(i, lh) * pois(j, la);
+        tot += p;
+        if (i + j >= 2) o15 += p;
+        if (i + j >= 3) o25 += p;
+        if (i > 0 && j > 0) bt += p;
+      }
+    }
+    return [Math.round(o15 / tot * 100), Math.round(o25 / tot * 100), Math.round(bt / tot * 100)];
+  }
+
   function computeLambdas(s, hf, af) {
-    var ok = s && !s.error && s.home && s.home.all && s.away && s.away.all &&
-      s.leagueAverages && s.leagueAverages.homeGoals > 0 && s.leagueAverages.awayGoals > 0;
+    var ok = s && !s.error && s.home && s.home.all && s.away && s.away.all;
+    var LH = ok && (s.home.leagueAverages || s.leagueAverages);
+    var LA = ok && (s.away.leagueAverages || s.leagueAverages);
+    ok = ok && LH && LA && LH.homeGoals > 0 && LH.awayGoals > 0 && LA.homeGoals > 0 && LA.awayGoals > 0;
     if (ok) {
-      var L = s.leagueAverages, avg = (L.homeGoals + L.awayGoals) / 2, K = 4;
-      var st = function (x, n) { return (n * (x / avg) + K) / (n + K); };
+      var K = 4;
+      var avgH = (LH.homeGoals + LH.awayGoals) / 2, avgA = (LA.homeGoals + LA.awayGoals) / 2;
+      var st = function (x, n, avg) { return (n * (x / avg) + K) / (n + K); };
       var Hh = s.home.all, A = s.away.all;
-      var lh = L.homeGoals * st(Hh.goalsFor, Hh.n) * st(A.goalsAgainst, A.n);
-      var la = L.awayGoals * st(A.goalsFor, A.n) * st(Hh.goalsAgainst, Hh.n);
+      var baseH = (LH.homeGoals + LA.homeGoals) / 2, baseA = (LH.awayGoals + LA.awayGoals) / 2;
+      var lh = baseH * st(Hh.goalsFor, Hh.n, avgH) * st(A.goalsAgainst, A.n, avgA);
+      var la = baseA * st(A.goalsFor, A.n, avgA) * st(Hh.goalsAgainst, Hh.n, avgH);
       var n = Math.min(Hh.n, A.n);
+      var cross = isCross(s);
       return {
         lh: Math.max(0.1, lh), la: Math.max(0.1, la), n: n,
-        basis: 'moyennes de la saison ' + s.season + ' (' + n + ' matchs minimum par équipe), corrigées par la moyenne du championnat',
-        level: n >= 10 ? 'bonne' : n >= 5 ? 'moyenne' : 'faible'
+        basis: cross
+          ? 'moyennes des championnats nationaux (' + n + ' matchs minimum par équipe) ; les deux clubs viennent de championnats différents et l’écart de niveau entre ces championnats n’est pas pris en compte'
+          : 'moyennes de la saison ' + s.season + ' (' + n + ' matchs minimum par équipe), corrigées par la moyenne du championnat',
+        level: cross ? 'faible' : (n >= 10 ? 'bonne' : n >= 5 ? 'moyenne' : 'faible')
       };
     }
     if (hf.xs.length >= 3 && af.xs.length >= 3) {
@@ -310,20 +335,30 @@ render();
   }
 
   // ---------- Historique des 5 derniers matchs ----------
-  async function recent(teamId, team) {
-    if (teamId) {
-      try {
-        var d = await getJSON(BASE + '/teams/' + encodeURIComponent(teamId) + '/matches?status=FINISHED&limit=5', 1);
-        var xs = (d.matches || []).map(function (x) {
-          return {
-            home: (x.homeTeam && x.homeTeam.name) || '', away: (x.awayTeam && x.awayTeam.name) || '',
-            date: (x.utcDate || '').slice(0, 10),
-            hg: num(x.score && x.score.fullTime && x.score.fullTime.home),
-            ag: num(x.score && x.score.fullTime && x.score.fullTime.away)
-          };
-        }).filter(function (x) { return x.home && x.away && x.hg !== null && x.ag !== null; });
-        if (xs.length) return summarize(xs, team, 'api');
-      } catch (e) { /* on passe à l'historique local */ }
+  async function recentApi(teamId, team) {
+    if (!teamId) return null;
+    try {
+      var d = await getJSON(BASE + '/teams/' + encodeURIComponent(teamId) + '/matches?status=FINISHED&limit=5', 1);
+      var xs = (d.matches || []).map(function (x) {
+        return {
+          home: (x.homeTeam && x.homeTeam.name) || '', away: (x.awayTeam && x.awayTeam.name) || '',
+          date: (x.utcDate || '').slice(0, 10),
+          hg: num(x.score && x.score.fullTime && x.score.fullTime.home),
+          ag: num(x.score && x.score.fullTime && x.score.fullTime.away)
+        };
+      }).filter(function (x) { return x.home && x.away && x.hg !== null && x.ag !== null; });
+      if (xs.length) return summarize(xs, team, 'api');
+    } catch (e) { /* on passe aux autres sources */ }
+    return null;
+  }
+
+  // Sans identifiant d'équipe (match enregistré avant) : derniers matchs du championnat national, puis historique local
+  function recentFallback(team, side) {
+    if (side && side.recent && side.recent.length) {
+      var cs = side.recent.map(function (x) {
+        return { home: x.home, away: x.away, date: x.date, hg: num(x.hg), ag: num(x.ag) };
+      }).filter(function (x) { return x.hg !== null && x.ag !== null; });
+      if (cs.length) return summarize(cs, side.matched, 'csv');
     }
     var local = matches.filter(function (x) {
       return String(x.status || '').toLowerCase().indexOf('termin') !== -1 &&
@@ -342,7 +377,7 @@ render();
       gf += sc; ga += co;
       if (sc > co) w++; else if (sc === co) d++; else l++;
     });
-    return { xs: xs, src: src, w: w, d: d, l: l, avgf: xs.length ? gf / xs.length : null, avga: xs.length ? ga / xs.length : null };
+    return { xs: xs, src: src, team: team, w: w, d: d, l: l, avgf: xs.length ? gf / xs.length : null, avga: xs.length ? ga / xs.length : null };
   }
 
   function pills(t, team) {
@@ -385,7 +420,8 @@ render();
     return '<div>' + (logo ? '<img src="' + H(logo) + '" alt="">' : '') + '<b>' + H(name) + '</b></div>';
   }
 
-  function render(i, f, hf, af, stats) {
+  function render(f, hf, af, stats, opts) {
+    opts = opts || {};
     var out = '<div class="sx" onclick="event.stopPropagation()">';
 
     // 1) En-tête
@@ -393,13 +429,26 @@ render();
       '<div><div class="sx-vs">' + (f.hg != null && f.ag != null ? H(f.hg) + ' - ' + H(f.ag) : 'VS') + '</div><small>' + H(f.date) + '</small></div>' +
       teamCell(f.away, f.awayLogo) + '</div></div>';
 
+    // 1b) Statistiques saisies pour ce match (match enregistré dans l'historique)
+    if (opts.own) {
+      var ownRows = '';
+      [['Buts', 'hg', 'ag'], ['Tirs', 'hs', 'as'], ['Fautes', 'hf', 'af'], ['Corners', 'hc', 'ac'],
+       ['Cartons jaunes', 'hy', 'ay'], ['Touches', 'ht', 'at'], ['Hors-jeu', 'ho', 'ao']].forEach(function (d) {
+        var hv = num(opts.own[d[1]]), av = num(opts.own[d[2]]);
+        if (hv !== null && av !== null) ownRows += '<div class="sx-est"><span>' + hv + '</span><b>' + d[0] + '</b><span>' + av + '</span></div>';
+      });
+      if (ownRows) out += '<div class="sx-card"><div class="sx-t">Statistiques enregistrées pour ce match</div>' + ownRows + '</div>';
+    }
+
     // 2) Probabilités
     var lam = computeLambdas(stats, hf, af);
     if (lam) {
       var p = outcome(lam.lh, lam.la);
+      var gm = goalMarkets(lam.lh, lam.la);
       out += '<div class="sx-card"><div class="sx-t">Probabilités du match<small>Fiabilité : ' + lam.level + '</small></div>' +
         '<div class="sx-prob"><span class="h" style="width:' + p[0] + '%">' + p[0] + '%</span><span class="d" style="width:' + p[1] + '%">' + p[1] + '%</span><span class="a" style="width:' + p[2] + '%">' + p[2] + '%</span></div>' +
         '<div class="sx-legend"><span>Victoire<br>' + H(f.home) + '</span><span>Match nul</span><span>Victoire<br>' + H(f.away) + '</span></div>' +
+        '<div class="sx-sub" style="margin-top:8px">Plus de 1,5 but : <b>' + gm[0] + ' %</b> · Plus de 2,5 buts : <b>' + gm[1] + ' %</b> · Les deux équipes marquent : <b>' + gm[2] + ' %</b></div>' +
         '<p class="hint" style="margin:10px 0 0">Buts attendus : ' + f2(lam.lh) + ' – ' + f2(lam.la) + '. Base de calcul : ' + H(lam.basis) +
         '. Estimation statistique indicative, sans cotes ni blessures : ce n’est pas une garantie.</p></div>';
     } else {
@@ -411,9 +460,9 @@ render();
       if (!t.xs.length) {
         return '<div class="sx-form"><div class="sx-form-top"><span class="sx-name">' + H(name) + '</span></div><div class="sx-sub">Historique indisponible (le serveur n’a rien renvoyé et aucun match n’est enregistré).</div></div>';
       }
-      return '<div class="sx-form"><div class="sx-form-top"><span class="sx-name">' + H(name) + '</span><span>' + pills(t, name) + '</span></div>' +
+      return '<div class="sx-form"><div class="sx-form-top"><span class="sx-name">' + H(name) + '</span><span>' + pills(t, t.team) + '</span></div>' +
         '<div class="sx-sub">' + t.w + ' V · ' + t.d + ' N · ' + t.l + ' D — buts marqués ' + f1(t.avgf) + ' / encaissés ' + f1(t.avga) + ' par match' +
-        (t.src === 'local' ? ' (historique enregistré sur ton téléphone)' : '') + '</div></div>';
+        (t.src === 'local' ? ' (historique enregistré sur ton téléphone)' : t.src === 'csv' ? ' (matchs de son championnat national)' : '') + '</div></div>';
     }
     out += '<div class="sx-card"><div class="sx-t">Forme<small>5 derniers matchs, du plus ancien au plus récent</small></div>' + formRow(f.home, hf) + formRow(f.away, af) + '</div>';
 
@@ -436,7 +485,15 @@ render();
         var ea = (stats.away.all[d[1]] + stats.home.all[d[2]]) / 2;
         est += '<div class="sx-est"><span>' + f1(eh) + '</span><b>' + d[0] + ' · total <em>' + f1(eh + ea) + '</em></b><span>' + f1(ea) + '</span></div>';
       });
-      note = 'Source : ' + H(stats.source) + ' · saison ' + H(stats.season) + ' · ' + H(stats.home.matched) + ' (' + stats.home.all.n + ' matchs) / ' + H(stats.away.matched) + ' (' + stats.away.all.n + ' matchs).';
+      if (isCross(stats)) {
+        note = (stats.league === 'CL'
+          ? 'Ligue des Champions : aucune source gratuite ne donne ses statistiques. Ces moyennes viennent du championnat national de chaque club, pas de matchs de Ligue des Champions : '
+          : 'Moyennes de chaque club dans son championnat national : ') +
+          H(stats.home.matched) + ' (' + H(stats.home.leagueLabel) + ', ' + H(stats.home.season) + ', ' + stats.home.all.n + ' matchs) / ' +
+          H(stats.away.matched) + ' (' + H(stats.away.leagueLabel) + ', ' + H(stats.away.season) + ', ' + stats.away.all.n + ' matchs).';
+      } else {
+        note = 'Source : ' + H(stats.source) + ' · saison ' + H(stats.season) + ' · ' + H(stats.home.matched) + ' (' + stats.home.all.n + ' matchs) / ' + H(stats.away.matched) + ' (' + stats.away.all.n + ' matchs).';
+      }
     } else {
       var why = stats && stats.error ? stats.error : 'Équipe introuvable dans la source.';
       if (stats && !stats.error) {
@@ -467,7 +524,7 @@ render();
         '<p class="hint" style="margin:8px 0 0">Calcul indicatif à partir des moyennes ci-dessus (domicile · total · extérieur).</p></div>';
     }
 
-    out += '<button class="btn" onclick="event.stopPropagation();toggleFixtureStats(' + i + ')">Fermer les statistiques</button></div>';
+    out += (opts.closeHtml || '') + '</div>';
     return out;
   }
 
@@ -480,20 +537,70 @@ render();
     (loadedFixtures || []).forEach(function (f) { f.code = code; f.iso = iso; });
   };
 
+  function leagueCode(name) {
+    var t = String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/champions/.test(t)) return 'CL';
+    if (/scottish|premiership/.test(t)) return 'SC0';
+    if (/premier league/.test(t) && !/russia|ukrain|egypt/.test(t)) return 'PL';
+    if (/primera division|la ?liga/.test(t) && !/segunda/.test(t)) return 'PD';
+    if (/serie a/.test(t)) return 'SA';
+    if (/bundesliga/.test(t) && !/2\.|zweite|austria/.test(t)) return 'BL1';
+    if (/ligue 1/.test(t)) return 'FL1';
+    if (/primeira liga|liga portugal/.test(t)) return 'PPL';
+    if (/eredivisie/.test(t)) return 'DED';
+    if (/super lig/.test(t)) return 'T1';
+    if (/pro league|jupiler/.test(t)) return 'B1';
+    return '';
+  }
+
+  async function panel(f, code, opts) {
+    var statsUrl = function (c) {
+      return BASE + '/stats/match?league=' + encodeURIComponent(c) + '&home=' + encodeURIComponent(f.home) + '&away=' + encodeURIComponent(f.away);
+    };
+    var res = await Promise.all([
+      recentApi(f.homeId, f.home),
+      recentApi(f.awayId, f.away),
+      getJSON(statsUrl(code), 2).catch(function (e) { return { error: e.message }; })
+    ]);
+    var stats = res[2];
+    // championnat mal deviné : on cherche les deux clubs dans tous les championnats disponibles
+    if (code !== 'ANY' && code !== 'CL' && stats && !stats.error && stats.home && stats.away && (!stats.home.matched || !stats.away.matched)) {
+      var again = await getJSON(statsUrl('ANY'), 1).catch(function () { return null; });
+      if (again && !again.error) stats = again;
+    }
+    var hf = res[0] || recentFallback(f.home, stats && stats.home);
+    var af = res[1] || recentFallback(f.away, stats && stats.away);
+    return render(f, hf, af, stats, opts);
+  }
+
   window.showFixtureStats = async function (i) {
     var f = loadedFixtures[i], root = document.getElementById('fixture-detail-' + i);
     if (!f || !root) return;
     root.innerHTML = '<div class="sx-card"><p class="hint" style="margin:0">Chargement… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</p></div>';
-
     var code = f.code || document.getElementById('fixtureLeague').value;
-    var statsUrl = BASE + '/stats/match?league=' + encodeURIComponent(code) + '&home=' + encodeURIComponent(f.home) + '&away=' + encodeURIComponent(f.away);
-    var res = await Promise.all([
-      recent(f.homeId, f.home),
-      recent(f.awayId, f.away),
-      getJSON(statsUrl, 2).catch(function (e) { return { error: e.message }; })
-    ]);
+    var html = await panel(f, code, {
+      closeHtml: '<button class="btn" onclick="event.stopPropagation();toggleFixtureStats(' + i + ')">Fermer les statistiques</button>'
+    });
     if (root.dataset.open !== 'yes') return;
-    root.innerHTML = render(i, f, res[0], res[1], res[2]);
+    root.innerHTML = html;
+  };
+
+  // « Analyser » dans l'historique : même panneau que « Voir les statistiques »
+  window.analyzeMatch = async function (id) {
+    var m = matches.find(function (x) { return x.id === id; });
+    var root = document.getElementById('detail-' + id);
+    if (!m || !root) return;
+    root.innerHTML = '<div class="sx-card"><p class="hint" style="margin:0">Analyse en cours… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</p></div>';
+    var f = {
+      home: m.home, away: m.away, homeLogo: '', awayLogo: '', date: m.date || '',
+      hg: num(m.hg), ag: num(m.ag), homeId: m.homeId || null, awayId: m.awayId || null
+    };
+    var close = '<button class="btn" onclick="event.stopPropagation();document.getElementById(\'detail-' + id + '\').innerHTML=\'\'">Fermer l’analyse</button>';
+    try {
+      root.innerHTML = await panel(f, m.code || leagueCode(m.league) || 'ANY', { closeHtml: close, own: m });
+    } catch (e) {
+      root.innerHTML = '<div class="sx-card"><div class="sx-warn">Analyse impossible : ' + H(e.message) + '</div></div>';
+    }
   };
 
   function isoOf(f) { return f.iso || frToIso(f.date); }
@@ -507,7 +614,8 @@ render();
     if (dup) { if (!silent) alert('Ce match est déjà dans ton historique.'); return false; }
     var done = appStatus(f.status) === 'Terminé';
     matches.unshift({
-      id: Date.now() + Math.random(), league: f.league, home: f.home, away: f.away, date: iso,
+      id: Date.now() + Math.random(), league: f.league, code: f.code || '', homeId: f.homeId || null, awayId: f.awayId || null,
+      home: f.home, away: f.away, date: iso,
       status: appStatus(f.status),
       hg: done && f.hg != null ? Number(f.hg) : null, ag: done && f.ag != null ? Number(f.ag) : null,
       hy: null, ay: null, hs: null, as: null, hf: null, af: null, ht: null, at: null, hc: null, ac: null, ho: null, ao: null,

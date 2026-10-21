@@ -190,7 +190,18 @@ app.get("/teams/:id/matches", async (req, res) => {
 // cartons jaunes) depuis les fichiers CSV gratuits de football-data.co.uk.
 // Les touches (throw-ins) ne sont fournies par aucune source gratuite.
 // ===================================================================
-const LEAGUE_CSV = { PL: "E0", PD: "SP1", SA: "I1", BL1: "D1", FL1: "F1", PPL: "P1", DED: "N1" };
+const LEAGUE_CSV = {
+  PL: "E0", PD: "SP1", SA: "I1", BL1: "D1", FL1: "F1", PPL: "P1", DED: "N1",
+  T1: "T1", SC0: "SC0", B1: "B1", G1: "G1"
+};
+const LEAGUE_LABELS = {
+  PL: "Premier League", PD: "La Liga", SA: "Serie A", BL1: "Bundesliga", FL1: "Ligue 1",
+  PPL: "Primeira Liga", DED: "Eredivisie", T1: "Süper Lig", SC0: "Scottish Premiership",
+  B1: "Pro League (Belgique)", G1: "Super League (Grèce)"
+};
+// Ligue des Champions : aucune source gratuite ne donne ses statistiques,
+// on utilise donc les moyennes du championnat national de chaque club.
+const CL_SEARCH = ["PL", "PD", "SA", "BL1", "FL1", "PPL", "DED", "T1", "SC0", "B1", "G1"];
 const CSV_HOSTS = ["https://www.football-data.co.uk", "http://www.football-data.co.uk"];
 const STATS_TTL = 6 * 60 * 60 * 1000;
 const statsCache = new Map();
@@ -237,6 +248,14 @@ function parseCsv(text) {
   return rows;
 }
 
+function csvDate(text) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(text || "").trim());
+  if (!m) return "";
+  let y = m[3];
+  if (y.length === 2) y = (Number(y) > 70 ? "19" : "20") + y;
+  return y + "-" + m[2].padStart(2, "0") + "-" + m[1].padStart(2, "0");
+}
+
 function emptyTotals() {
   return {
     n: 0,
@@ -266,8 +285,12 @@ function aggregate(rows) {
 
   const teams = {};
   const league = { n: 0, homeGoals: 0, awayGoals: 0 };
+  const ensure = name => {
+    if (!teams[name]) teams[name] = { all: emptyTotals(), home: emptyTotals(), away: emptyTotals(), recent: [] };
+    return teams[name];
+  };
   const add = (name, side, mine, theirs) => {
-    if (!teams[name]) teams[name] = { all: emptyTotals(), home: emptyTotals(), away: emptyTotals() };
+    ensure(name);
     [teams[name].all, teams[name][side]].forEach(t => {
       t.n++;
       t.goalsFor += mine.g; t.goalsAgainst += theirs.g;
@@ -282,6 +305,13 @@ function aggregate(rows) {
     const home = (r[idx.HomeTeam] || "").trim();
     const away = (r[idx.AwayTeam] || "").trim();
     if (!home || !away) return;
+    const rg = [val(r, "FTHG"), val(r, "FTAG")];
+    const day = "Date" in idx ? csvDate(r[idx.Date]) : "";
+    if (day && rg[0] !== null && rg[1] !== null) {
+      const played = { d: day, home, away, hg: rg[0], ag: rg[1] };
+      ensure(home).recent.push(played);
+      ensure(away).recent.push(played);
+    }
     const h = { g: val(r, "FTHG"), s: val(r, "HS"), f: val(r, "HF"), c: val(r, "HC"), y: val(r, "HY") };
     const a = { g: val(r, "FTAG"), s: val(r, "AS"), f: val(r, "AF"), c: val(r, "AC"), y: val(r, "AY") };
     if ([h.g, h.s, h.f, h.c, h.y, a.g, a.s, a.f, a.c, a.y].some(v => v === null)) return;
@@ -372,7 +402,8 @@ const TEAM_ALIASES = {
   "espanyol barcelona": "Espanol",
   "sporting portugal": "Sp Lisbon",
   "sporting braga": "Sp Braga",
-  "vitoria": "Guimaraes"
+  "vitoria": "Guimaraes",
+  "olympiacos": "Olympiakos"
 };
 
 function teamTokens(name) {
@@ -389,10 +420,10 @@ function tokenMatch(a, b) {
   return a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
 }
 
-function matchTeam(requested, names) {
+function matchTeamScore(requested, names) {
   const rt = teamTokens(requested);
   const alias = TEAM_ALIASES[rt.join(" ")];
-  if (alias && names.includes(alias)) return alias;
+  if (alias && names.includes(alias)) return { name: alias, score: 1 };
 
   let best = null;
   let bestScore = 0;
@@ -404,7 +435,60 @@ function matchTeam(requested, names) {
     const score = hits / nt.length - 0.01 * extra;
     if (score > bestScore) { bestScore = score; best = name; }
   }
-  return bestScore >= 0.5 ? best : null;
+  return bestScore >= 0.5 ? { name: best, score: bestScore } : null;
+}
+
+function matchTeam(requested, names) {
+  const m = matchTeamScore(requested, names);
+  return m ? m.name : null;
+}
+
+function teamPayload(requested, data, name, leagueCode) {
+  const t = data.teams[name];
+  return {
+    requested,
+    matched: name,
+    league: leagueCode,
+    leagueLabel: LEAGUE_LABELS[leagueCode] || leagueCode,
+    season: "20" + data.season.slice(0, 2) + "/" + data.season.slice(2),
+    all: averages(t.all),
+    home: averages(t.home),
+    away: averages(t.away),
+    leagueAverages: data.league,
+    recent: (t.recent || [])
+      .slice()
+      .sort((a, b) => a.d.localeCompare(b.d))
+      .slice(-5)
+      .map(x => ({ date: x.d, home: x.home, away: x.away, hg: x.hg, ag: x.ag }))
+  };
+}
+
+// Cherche chaque club dans tous les championnats chargés (pour la Ligue des Champions).
+function buildCross(home, away, loaded, leagueCode) {
+  const find = requested => {
+    let best = null;
+    loaded.forEach((r, i) => {
+      if (r.status !== "fulfilled") return;
+      const m = matchTeamScore(requested, Object.keys(r.value.teams));
+      if (m && (!best || m.score > best.m.score)) best = { m, data: r.value, code: CL_SEARCH[i] };
+    });
+    return best;
+  };
+  const build = requested => {
+    const b = find(requested);
+    return b ? teamPayload(requested, b.data, b.m.name, b.code) : { requested, matched: null };
+  };
+  const h = build(home);
+  const a = build(away);
+  return {
+    source: "football-data.co.uk",
+    league: leagueCode || "CL",
+    cross: true,
+    season: h.season || a.season || null,
+    home: h,
+    away: a,
+    unavailable: ["Touches"]
+  };
 }
 
 app.get("/stats/match", async (req, res) => {
@@ -413,14 +497,23 @@ app.get("/stats/match", async (req, res) => {
     const home = String(req.query.home || "");
     const away = String(req.query.away || "");
 
+    if (!home || !away) {
+      return res.status(400).json({ error: "Les paramètres home et away sont obligatoires." });
+    }
+
+    if (league === "CL" || league === "ANY") {
+      const loaded = await Promise.allSettled(CL_SEARCH.map(code => getLeagueStats(code)));
+      if (loaded.every(r => r.status !== "fulfilled")) {
+        throw new Error("Aucun championnat n'a pu être chargé depuis football-data.co.uk.");
+      }
+      return res.json(buildCross(home, away, loaded, league));
+    }
+
     if (!LEAGUE_CSV[league]) {
       return res.status(404).json({
         error: "Ce championnat n'est pas couvert par la source gratuite.",
-        supported: Object.keys(LEAGUE_CSV)
+        supported: Object.keys(LEAGUE_CSV).concat(["CL", "ANY"])
       });
-    }
-    if (!home || !away) {
-      return res.status(400).json({ error: "Les paramètres home et away sont obligatoires." });
     }
 
     const season = /^\d{4}$/.test(String(req.query.season || "")) ? String(req.query.season) : null;
@@ -430,8 +523,7 @@ app.get("/stats/match", async (req, res) => {
     const build = requested => {
       const matched = matchTeam(requested, names);
       if (!matched) return { requested, matched: null, available: names.slice(0, 30) };
-      const t = data.teams[matched];
-      return { requested, matched, all: averages(t.all), home: averages(t.home), away: averages(t.away) };
+      return teamPayload(requested, data, matched, league);
     };
 
     res.json({
