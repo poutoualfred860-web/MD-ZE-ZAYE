@@ -6,23 +6,34 @@
 <title>MD ZE ZAYE — Analyse Football</title>
 <style>
 :root{--bg:#070707;--panel:#141414;--panel2:#1d1d1d;--gold:#f6c945;--gold2:#b8860b;--text:#f7f4eb;--muted:#aaa69a;--line:#3c3218;--red:#e45d5d}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#211a08 0,#080808 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}header{padding:20px 16px 14px;text-align:center;border-bottom:1px solid var(--line);background:#050505} .crown{font-size:30px;color:var(--gold)}.brand{font-weight:1000;font-size:27px;letter-spacing:1px;color:var(--gold);text-shadow:0 2px 16px #a87b20}.sub{color:#d8d0bd;font-size:12px;letter-spacing:2px}.wrap{max-width:760px;margin:auto;padding:14px 12px 90px}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:14px}.tabs button,.btn{border:1px solid var(--gold2);border-radius:10px;background:#15120a;color:var(--text);padding:10px 13px;font-weight:750;white-space:nowrap}.tabs button.active,.btn.primary{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007}.card{background:linear-gradient(145deg,#181818,#0e0e0e);border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;box-shadow:0 6px 20px #0008}.title{color:var(--gold);font-weight:850;font-size:17px;margin:0 0 10px}label{display:block;color:#d4c9a9;font-size:12px;margin:8px 0 4px}input,select,textarea{width:100%;padding:11px;border-radius:9px;border:1px solid #4b4024;background:#080808;color:white;font:inherit}input[type=file]{padding:8px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45}.hidden{display:none!important}.match{padding:12px;border:1px solid #3a311a;border-radius:11px;margin:8px 0;background:#101010}.match strong{color:var(--gold)}.badge{display:inline-block;border:1px solid #78601d;border-radius:99px;padding:3px 8px;color:var(--gold);font-size:11px}.statrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #29251b}.bar{height:7px;background:#292929;border-radius:10px;overflow:hidden;margin-top:5px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#a87809,#ffe16a)}.bottom{position:fixed;bottom:0;left:0;right:0;background:#050505;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));z-index:3}.bottom button{background:none;border:0;color:#b9b3a2;font-size:12px}.bottom button.active{color:var(--gold)}.empty{color:var(--muted);text-align:center;padding:22px}.warning{border-color:#684d16;color:#e8d8a5;background:#171207;padding:10px;border-radius:10px;font-size:12px}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#211a08 0,#080808 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}header{padding:20px 16px 14px;text-align:center;border-bottom:1px solid var(--line);background:#050505} .crown{font-size:30px;color:var(--gold)}.brand{font-weight:1000;font-size:27px;letter-spacing:1px;color:var(--gold);text-shadow:0 2px 16px #a87b20}.sub{color:#d8d0bd;font-size:12px;letter-spacing:2px}.wrap{max-width:760px;margin:auto;padding:14px 12px 90px}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:14px}.tabs button,.btn{border:1px solid var(--gold2);border-radius:10px;background:#15120a;color:var(--text);padding:10px 13px;font-weight:750;white-space:nowrap}.tabs button.active,.btn.primary{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007}.card{background:linear-gradient(145deg,#181818,#0e0e0e);border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;box-shadow:0 6px 20px #0008}.title{color:var(--gold);font-weight:850;font-size:17px;margin:0 0 10px}label{display:block;color:#d4c9a9;font-size:12px;margin:8px 0 4px}input,select,textarea{width:100%;padding:11px;border-radius:9px;border:1px solid #4b4024;background:#080808;color:white;font:inherit}input[type=file]{padding:8px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45}.hidden{display:none!important}.match{padding:12px;border:1px solid #3a311a;border-radius:11px;margin:8px 0;background:#101010}.match strong{color:var(--gold)}.badge{display:inline-block;border:1px solid #78601d;border-radius:99px;padding:3px 8px;color:var(--gold);font-size:11px}.statrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #29251b}.bar{height:7px;background:#292929;border-radius:10px;overflow:hidden;margin-top:5px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#a87809,#ffe16a)}.bottom{position:fixed;bottom:0;left:0;right:0;background:#050505;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));z-index:3}.bottom button{background:none;border:0;color:#b9b3a2;font-size:12px}.bottom button.active{color:var(--gold)}.empty{color:var(--muted);text-align:center;padding:22px}.league-checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}.league-checks label{display:flex;align-items:center;gap:7px;font-size:12px}.league-checks input[type=checkbox]{width:auto;accent-color:#f6c945}.warning{border-color:#684d16;color:#e8d8a5;background:#171207;padding:10px;border-radius:10px;font-size:12px}
 </style>
 </head>
 <body>
 <header><div class="crown">♛</div><div class="brand">MD ZE ZAYE</div><div class="sub">ANALYSE • STATISTIQUES • PRONOSTICS</div></header>
 <div class="wrap">
-<div class="tabs" id="tabs"><button class="active" data-page="home">Accueil</button><button data-page="add">Ajouter un match</button><button data-page="history">Historique</button><button data-page="import">Importer CSV</button><button data-page="fixtures">Matchs du jour</button></div>
-<section id="fixtures" class="page hidden"><div class="card"><h2 class="title">Matchs du jour & calendrier</h2>
+<div class="tabs" id="tabs"><button class="active" data-page="fixtures">Matchs du jour</button><button data-page="filter">Filtre</button><button data-page="analysis">Analyse</button><button data-page="pronostics">Pronostics</button><button data-page="prediction">Prédiction</button></div>
+<section id="fixtures" class="page"><div class="card"><h2 class="title">Matchs du jour & calendrier</h2>
 <p class="hint">Connexion Internet nécessaire pour charger le calendrier. La disponibilité et la fraîcheur varient selon le championnat et la source.</p>
-<label>Championnat</label><select id="fixtureLeague">
+<label>Championnats à charger</label>
+<div class="league-checks" id="leagueChecks">
+<label><input type="checkbox" value="PL" checked> Angleterre — Premier League</label>
+<label><input type="checkbox" value="PD" checked> Espagne — La Liga</label>
+<label><input type="checkbox" value="SA" checked> Italie — Serie A</label>
+<label><input type="checkbox" value="BL1" checked> Allemagne — Bundesliga</label>
+<label><input type="checkbox" value="FL1" checked> France — Ligue 1</label>
+<label><input type="checkbox" value="CL" checked> Ligue des Champions UEFA</label>
+<label><input type="checkbox" value="PPL"> Portugal — Primeira Liga</label>
+<label><input type="checkbox" value="DED"> Pays-Bas — Eredivisie</label>
+</div>
+<label>Championnat utilisé par le chargement (compatibilité)</label><select id="fixtureLeague" class="hidden">
 <option value="PL">Angleterre — Premier League</option><option value="PD">Espagne — La Liga</option><option value="SA">Italie — Serie A</option><option value="BL1">Allemagne — Bundesliga</option><option value="FL1">France — Ligue 1</option><option value="CL">Ligue des Champions UEFA</option><option value="PPL">Portugal — Primeira Liga</option><option value="DED">Pays-Bas — Eredivisie</option>
 </select>
 <label>Date</label><input id="fixtureDate" type="date"/>
 <div class="actions"><button class="btn primary" onclick="loadFixtures()">Charger les matchs</button><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
 <div id="fixtureStatus" class="hint" style="margin-top:10px">Choisis un championnat puis appuie sur « Charger les matchs ».</div><div id="fixtureList"></div>
 </div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats). Pour la Ligue des Champions, ce sont les moyennes du championnat national de chaque club. Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
-<section id="home" class="page">
+<section id="home" class="page hidden">
 <div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
 <div class="card"><h3 class="title">Marchés couverts</h3><div class="grid"><span class="badge">⚽ Buts</span><span class="badge">🟨 Cartons</span><span class="badge">🎯 Tirs</span><span class="badge">⚑ Fautes</span><span class="badge">↔ Touches</span><span class="badge">⚐ Corners</span><span class="badge">⛳ Hors-jeu</span></div></div>
 <div class="card"><h3 class="title">Derniers matchs</h3><div id="recent" class="empty">Aucun match pour le moment. Ajoute un match ou importe un fichier CSV.</div></div>
@@ -46,9 +57,23 @@
 
 
 
+<section id="filter" class="page hidden">
+<div class="card"><h2 class="title">Filtre des matchs</h2>
+<p class="hint">Choisis les championnats dans « Matchs du jour », puis sélectionne le marché. Le filtre s’appuie uniquement sur les données disponibles.</p>
+<label>Marché à filtrer</label>
+<select id="filterMarket"><option value="shotsFor">Tirs</option><option value="foulsFor">Fautes</option><option value="cornersFor">Corners</option><option value="yellowFor">Cartons jaunes</option><option value="throwsFor">Touches</option></select>
+<label>Tendance recherchée</label>
+<select id="filterTrend"><option value="high">Tendance élevée</option><option value="low">Tendance faible</option><option value="any">Toutes les tendances avec données</option></select>
+<div class="actions"><button class="btn primary" onclick="runMarketFilter()">Filtrer les matchs chargés</button></div>
+<div id="filterStatus" class="hint">Charge d’abord les matchs du jour.</div><div id="filterList"></div>
+</div>
+<div class="warning">Un match n’est retenu que si la source fournit des données pour le marché sélectionné. Touches : elles peuvent rester indisponibles dans les sources gratuites.</div>
+</section>
+<section id="pronostics" class="page hidden"><div class="card"><h2 class="title">Pronostics</h2><p class="hint">Les pronostics seront générés à partir des matchs retenus et de leur analyse. Une tendance statistique n’est jamais une garantie.</p><div id="pronosticsList" class="empty">Lance d’abord le filtre, puis ouvre Analyse pour examiner les résultats.</div></div></section>
+<section id="prediction" class="page hidden"><div class="card"><h2 class="title">Prédiction</h2><p>Rubrique réservée. Son rôle sera défini plus tard.</p><div class="warning">Aucune prédiction automatique n’est lancée dans cette rubrique pour le moment.</div></div></section>
 <section id="analysis" class="page hidden"><div class="card"><h2 class="title">Analyse statistique</h2><p class="hint">Les moyennes sont calculées uniquement sur les valeurs connues des matchs enregistrés.</p><label>Marché à analyser</label><select id="market"><option value="goals">Buts</option><option value="cards">Cartons jaunes</option><option value="shots">Tirs</option><option value="fouls">Fautes</option><option value="throws">Touches</option><option value="corners">Corners</option><option value="offsides">Hors-jeu</option></select><div id="analysisResult"></div></div></section>
 </div>
-<nav class="bottom"><button class="active" data-page="home">⌂<br>Accueil</button><button data-page="add">＋<br>Ajouter</button><button data-page="analysis">▥<br>Analyses</button><button data-page="fixtures">⚽<br>Matchs</button><button data-page="history">◷<br>Historique</button></nav>
+<nav class="bottom"><button class="active" data-page="fixtures">⚽<br>Matchs du jour</button><button data-page="filter">☷<br>Filtre</button><button data-page="analysis">▥<br>Analyse</button><button data-page="pronostics">✓<br>Pronostics</button><button data-page="prediction">◉<br>Prédiction</button></nav>
 <script>
 const KEY='mdzz_matches_v1'; let matches=load(); let loadedFixtures=[]; document.getElementById('fixtureDate').value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}}
@@ -646,4 +671,73 @@ render();
   })();
 })();
 </script>
+
+<script>
+/* Interface principale MD ZE ZAYE : chargement multi-championnats et filtre par marché */
+(function(){
+ const BASE='https://md-ze-zaye.onrender.com';
+ const oldLoad=window.loadFixtures;
+ const selectedCodes=()=>Array.from(document.querySelectorAll('#leagueChecks input:checked')).map(x=>x.value);
+ const names={PL:'Premier League',PD:'La Liga',SA:'Serie A',BL1:'Bundesliga',FL1:'Ligue 1',CL:'Ligue des Champions UEFA',PPL:'Primeira Liga',DED:'Eredivisie'};
+ function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+ function esc2(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+ window.loadFixtures=async function(){
+   const codes=selectedCodes(), date=document.getElementById('fixtureDate').value||today();
+   const status=document.getElementById('fixtureStatus'),list=document.getElementById('fixtureList');
+   if(!codes.length){status.textContent='Coche au moins un championnat.';return}
+   status.textContent='Chargement automatique des championnats sélectionnés…';list.innerHTML='';
+   const all=[];
+   for(const code of codes){
+     document.getElementById('fixtureLeague').value=code;
+     try{
+       const r=await fetch(`${BASE}/competitions/${encodeURIComponent(code)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`,{headers:{Accept:'application/json'}});
+       const d=await r.json();if(!r.ok)throw Error(d.error||'Erreur serveur');
+       (d.matches||[]).forEach(x=>{
+         if(!x.homeTeam?.name||!x.awayTeam?.name)return;
+         const ft=x.score?.fullTime||{},utc=x.utcDate||'';
+         let kickoff=date;if(utc){kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(utc))}
+         all.push({id:'fixture-'+all.length,apiId:x.id,homeId:x.homeTeam?.id||null,awayId:x.awayTeam?.id||null,code,iso:date,league:x.competition?.name||names[code]||code,competitionLogo:x.competition?.emblem||'',home:x.homeTeam.name,away:x.awayTeam.name,homeLogo:x.homeTeam.crest||'',awayLogo:x.awayTeam.crest||'',date:kickoff,status:x.status||'SCHEDULED',hg:ft.home??null,ag:ft.away??null});
+       });
+     }catch(e){console.warn('Championnat '+code,e)}
+   }
+   loadedFixtures=all;
+   if(!all.length){status.textContent='Aucun match trouvé pour les championnats cochés à cette date, ou la source ne les rend pas disponibles.';return}
+   status.textContent=`${all.length} match(s) chargé(s) dans ${codes.length} championnat(s).`;
+   list.innerHTML=all.map((m,i)=>`<div class="match" onclick="toggleFixtureStats(${i})"><div class="hint">${esc2(m.league)}</div><div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc2(m.homeLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?esc2(m.hg)+' - '+esc2(m.ag):'VS'}</b><div class="hint">${esc2(m.date)}</div><span class="badge">${esc2(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc2(m.awayLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.away)}</strong></div></div><div class="actions"><button class="btn" onclick="event.stopPropagation();toggleFixtureStats(${i})">Analyser</button><button class="btn" onclick="event.stopPropagation();saveFixture(${i})">Ajouter à l’historique</button></div><div id="fixture-detail-${i}"></div></div>`).join('');
+   window.__mdzzFiltered=[];
+ };
+ window.runMarketFilter=async function(){
+   const status=document.getElementById('filterStatus'),out=document.getElementById('filterList');
+   if(!loadedFixtures.length){status.textContent='Charge d’abord les matchs du jour.';return}
+   const market=document.getElementById('filterMarket').value,trend=document.getElementById('filterTrend').value;
+   const labels={shotsFor:'Tirs',foulsFor:'Fautes',cornersFor:'Corners',yellowFor:'Cartons jaunes',throwsFor:'Touches'};
+   status.textContent='Analyse des tendances disponibles…';out.innerHTML='';
+   const found=[];
+   for(const f of loadedFixtures){
+     try{
+       const url=BASE+'/stats/match?league='+encodeURIComponent(f.code||'ANY')+'&home='+encodeURIComponent(f.home)+'&away='+encodeURIComponent(f.away);
+       const r=await fetch(url,{headers:{Accept:'application/json'}}),d=await r.json();
+       if(!r.ok||d.error||!d.home?.all||!d.away?.all)continue;
+       let key=market;
+       if(market==='throwsFor')continue; // source automatique non disponible de façon fiable
+       const h=Number(d.home.all[key]),a=Number(d.away.all[key]);
+       if(!Number.isFinite(h)||!Number.isFinite(a))continue;
+       const total=h+a, isHigh=total>=20;
+       if(trend==='high'&&!isHigh)continue;
+       if(trend==='low'&&isHigh)continue;
+       found.push({f,h,a,total});
+     }catch(e){}
+   }
+   window.__mdzzFiltered=found.map(x=>x.f);
+   status.textContent=found.length?`${found.length} match(s) retenu(s) pour le marché ${labels[market]||market}.`:'Aucun match retenu : données insuffisantes ou aucun match ne répond à la tendance choisie.';
+   out.innerHTML=found.map(({f,h,a,total})=>`<div class="match"><strong>${esc2(f.home)} — ${esc2(f.away)}</strong><div class="hint">${esc2(f.league)} · ${esc2(f.date)}</div><div class="statrow"><span>${labels[market]||market} · moyenne équipe domicile</span><b>${h.toFixed(1)}</b></div><div class="statrow"><span>Moyenne équipe extérieure</span><b>${a.toFixed(1)}</b></div><div class="statrow"><span>Total moyen comparé</span><b>${total.toFixed(1)}</b></div><div class="actions"><button class="btn primary" onclick="show('fixtures');const i=loadedFixtures.findIndex(x=>x.apiId===${Number(f.apiId)||0});if(i>=0)toggleFixtureStats(i)">Ouvrir l’analyse</button></div></div>`).join('');
+   document.getElementById('pronosticsList').innerHTML=found.length?found.map(x=>`<div class="match"><strong>${esc2(x.f.home)} — ${esc2(x.f.away)}</strong><div class="hint">${esc2(x.f.league)} · Marché : ${labels[market]||market}</div><div class="statrow"><span>Tendance observée</span><b>${x.total>=20?'Élevée':'Faible'}</b></div><p class="hint">Indicateur exploratoire basé sur les moyennes retournées par la source ; ce n’est pas une garantie ni une recommandation certaine.</p></div>`).join(''):'Aucun match filtré pour le moment.';
+ };
+ const oldShow=window.show;
+ window.addEventListener('load',()=>setTimeout(()=>{if(!window.__mdzzAutoloaded){window.__mdzzAutoloaded=true;window.loadFixtures()}},300));
+ window.show=function(id){oldShow(id);if(id==='fixtures'&&!window.__mdzzAutoloaded){window.__mdzzAutoloaded=true;setTimeout(()=>window.loadFixtures(),250)}};
+ document.getElementById('market')?.addEventListener('change',function(){});
+})();
+</script>
+
 </body></html>
