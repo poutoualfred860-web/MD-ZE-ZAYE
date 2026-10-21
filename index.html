@@ -709,20 +709,25 @@ render();
    window.__mdzzFiltered=[];
  };
  window.startFilterWithFixtures=function(){
-   if(!loadedFixtures.length){alert('Charge d’abord les matchs du jour.');return}
-   window.__mdzzFilterInput=loadedFixtures.slice();
+   const source=Array.isArray(loadedFixtures)?loadedFixtures:[];
+   if(!source.length){alert('Charge d’abord les matchs du jour.');return}
+   // Copie indépendante pour que le Filtre reçoive explicitement les matchs chargés.
+   window.__mdzzFilterInput=source.map(f=>({...f}));
    const status=document.getElementById('filterStatus');
-   if(status)status.textContent=loadedFixtures.length+' match(s) du jour transmis au Filtre. Choisis un marché puis appuie sur « Filtrer les matchs chargés ». ';
+   const out=document.getElementById('filterList');
+   if(status)status.textContent=window.__mdzzFilterInput.length+' match(s) reçus dans le Filtre. Choisis un marché puis appuie sur « Filtrer les matchs chargés ».';
+   if(out)out.innerHTML=window.__mdzzFilterInput.map(f=>`<div class="match"><strong>${esc2(f.home)} — ${esc2(f.away)}</strong><div class="hint">${esc2(f.league)} · ${esc2(f.date)}</div><span class="badge">En attente du filtre statistique</span></div>`).join('');
    if(typeof window.show==='function')window.show('filter');
  };
  window.runMarketFilter=async function(){
    const status=document.getElementById('filterStatus'),out=document.getElementById('filterList');
-   if(!loadedFixtures.length){status.textContent='Charge d’abord les matchs du jour.';return}
+   const filterInput=Array.isArray(window.__mdzzFilterInput)&&window.__mdzzFilterInput.length?window.__mdzzFilterInput:loadedFixtures;
+   if(!filterInput||!filterInput.length){status.textContent='Charge les matchs du jour puis appuie sur « Démarrer → Envoyer les matchs au Filtre ». ';return}
    const market=document.getElementById('filterMarket').value,trend=document.getElementById('filterTrend').value;
    const labels={shotsFor:'Tirs',foulsFor:'Fautes',cornersFor:'Corners',yellowFor:'Cartons jaunes',throwsFor:'Touches'};
    status.textContent='Analyse des tendances disponibles…';out.innerHTML='';
    const found=[];
-   for(const f of loadedFixtures){
+   for(const f of filterInput){
      try{
        const url=BASE+'/stats/match?league='+encodeURIComponent(f.code||'ANY')+'&home='+encodeURIComponent(f.home)+'&away='+encodeURIComponent(f.away);
        const r=await fetch(url,{headers:{Accept:'application/json'}}),d=await r.json();
