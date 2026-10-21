@@ -5,734 +5,411 @@
 <meta name="theme-color" content="#080808">
 <title>MD ZE ZAYE — Analyse Football</title>
 <style>
-:root{--bg:#070707;--panel:#141414;--panel2:#1d1d1d;--gold:#f6c945;--gold2:#b8860b;--text:#f7f4eb;--muted:#aaa69a;--line:#3c3218;--red:#e45d5d}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#211a08 0,#080808 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}header{padding:20px 16px 14px;text-align:center;border-bottom:1px solid var(--line);background:#050505} .crown{font-size:30px;color:var(--gold)}.brand{font-weight:1000;font-size:27px;letter-spacing:1px;color:var(--gold);text-shadow:0 2px 16px #a87b20}.sub{color:#d8d0bd;font-size:12px;letter-spacing:2px}.wrap{max-width:760px;margin:auto;padding:14px 12px 90px}.tabs{display:flex;gap:7px;overflow:auto;margin-bottom:14px}.tabs button,.btn{border:1px solid var(--gold2);border-radius:10px;background:#15120a;color:var(--text);padding:10px 13px;font-weight:750;white-space:nowrap}.tabs button.active,.btn.primary{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007}.card{background:linear-gradient(145deg,#181818,#0e0e0e);border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;box-shadow:0 6px 20px #0008}.title{color:var(--gold);font-weight:850;font-size:17px;margin:0 0 10px}label{display:block;color:#d4c9a9;font-size:12px;margin:8px 0 4px}input,select,textarea{width:100%;padding:11px;border-radius:9px;border:1px solid #4b4024;background:#080808;color:white;font:inherit}input[type=file]{padding:8px} .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hint{font-size:12px;color:var(--muted);line-height:1.45}.hidden{display:none!important}.match{padding:12px;border:1px solid #3a311a;border-radius:11px;margin:8px 0;background:#101010}.match strong{color:var(--gold)}.badge{display:inline-block;border:1px solid #78601d;border-radius:99px;padding:3px 8px;color:var(--gold);font-size:11px}.statrow{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #29251b}.bar{height:7px;background:#292929;border-radius:10px;overflow:hidden;margin-top:5px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#a87809,#ffe16a)}.bottom{position:fixed;bottom:0;left:0;right:0;background:#050505;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 4px calc(10px + env(safe-area-inset-bottom));z-index:3}.bottom button{background:none;border:0;color:#b9b3a2;font-size:12px}.bottom button.active{color:var(--gold)}.empty{color:var(--muted);text-align:center;padding:22px}.league-checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 10px}.league-checks label{display:flex;align-items:center;gap:7px;font-size:12px}.league-checks input[type=checkbox]{width:auto;accent-color:#f6c945}.warning{border-color:#684d16;color:#e8d8a5;background:#171207;padding:10px;border-radius:10px;font-size:12px}
+:root{--bg:#070707;--panel:#141414;--gold:#f6c945;--gold2:#b8860b;--text:#f7f4eb;--muted:#aaa69a;--line:#3c3218;--red:#e45d5d;--green:#5cc98a}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#211a08 0,#080808 45%);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+header{padding:18px 16px 12px;text-align:center;border-bottom:1px solid var(--line);background:#050505}
+.crown{font-size:28px;color:var(--gold)}.brand{font-weight:900;font-size:26px;letter-spacing:1px;color:var(--gold);text-shadow:0 2px 16px #a87b20}.sub{color:#d8d0bd;font-size:11px;letter-spacing:2px}
+.wrap{max-width:760px;margin:auto;padding:12px 12px 96px}
+.card{background:linear-gradient(145deg,#181818,#0e0e0e);border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;box-shadow:0 6px 20px #0008}
+.title{color:var(--gold);font-weight:850;font-size:17px;margin:0 0 10px}
+.hint{font-size:12px;color:var(--muted);line-height:1.45}
+.hidden{display:none!important}
+label.l{display:block;color:#d4c9a9;font-size:12px;margin:10px 0 6px}
+input[type=date]{padding:10px;border-radius:9px;border:1px solid #4b4024;background:#080808;color:#fff;font:inherit}
+.btn{border:1px solid var(--gold2);border-radius:10px;background:#15120a;color:var(--text);padding:10px 13px;font:inherit;font-weight:750}
+.btn.primary{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid #78601d;border-radius:99px;background:#15120a;color:var(--text);padding:8px 13px;font:inherit;font-size:13px;font-weight:700}
+.chip.on{background:linear-gradient(135deg,#ffe57a,#d69d12);color:#151007;border-color:#ffe57a}
+.chip small{font-weight:500;opacity:.8}
+.checks label{display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid #29251b;font-size:14px}
+.checks label.off{opacity:.45}
+.checks input{width:20px;height:20px;accent-color:#f6c945;flex:none}
+.checks .cnt{margin-left:auto;color:var(--muted);font-size:12px;text-align:right}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper b{font-size:22px;color:var(--gold);min-width:64px;text-align:center}
+.stepper button{width:42px;height:42px;border-radius:50%;border:1px solid var(--gold2);background:#15120a;color:var(--gold);font-size:22px;font-weight:800}
+.grp{margin:16px 0 6px;display:flex;align-items:center;gap:8px;color:var(--gold);font-weight:800;font-size:14px}
+.grp img{width:22px;height:22px;object-fit:contain}
+.m{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #29251b}
+.m:last-child{border:0}
+.m .t{color:var(--gold);font-weight:800;font-size:13px}
+.m .n{display:flex;flex-direction:column;gap:5px;font-size:14px}
+.m .n span{display:flex;align-items:center;gap:7px}
+.m .n img{width:18px;height:18px;object-fit:contain}
+.m .s{text-align:right;font-size:12px;color:var(--muted)}
+.m .s b{display:block;color:var(--text);font-size:15px}
+.badge{display:inline-block;border:1px solid #78601d;border-radius:99px;padding:3px 9px;color:var(--gold);font-size:11px;white-space:nowrap}
+.badge.g{border-color:#2f7a52;color:var(--green)}.badge.r{border-color:#8a3a3a;color:var(--red)}
+.mc{padding:12px;border:1px solid #3a311a;border-radius:12px;margin:10px 0;background:#101010}
+.mc h4{margin:0 0 3px;font-size:15px;color:var(--gold)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.two>div{background:#0b0b0b;border:1px solid #2a2415;border-radius:10px;padding:9px}
+.two b{font-size:13px;display:block;margin-bottom:3px}
+.est{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #29251b;border-bottom:1px solid #29251b;margin:6px 0;font-size:14px}
+.est b{color:var(--gold);font-size:18px}
+.lad{display:grid;grid-template-columns:104px 1fr 44px;gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.lad.sel{color:var(--gold);font-weight:800}
+.bar{height:8px;background:#292929;border-radius:10px;overflow:hidden}
+.bar span{display:block;height:100%;background:linear-gradient(90deg,#a87809,#ffe16a)}
+.lad b{text-align:right}
+.pick{font-size:19px;font-weight:900;color:var(--gold);margin:6px 0 2px}
+.pp{display:flex;align-items:center;gap:10px;margin:6px 0}
+.pp .bar{flex:1;height:10px}.pp b{font-size:18px}
+.warning{border:1px solid #684d16;color:#e8d8a5;background:#171207;padding:10px;border-radius:10px;font-size:12px;margin:10px 0;line-height:1.45}
+.empty{color:var(--muted);text-align:center;padding:22px;font-size:14px;line-height:1.5}
+.bottom{position:fixed;bottom:0;left:0;right:0;background:#050505;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:8px 2px calc(8px + env(safe-area-inset-bottom));z-index:3}
+.bottom button{background:none;border:0;color:#b9b3a2;font-size:11px;flex:1;line-height:1.25;padding:4px 2px}
+.bottom button i{display:block;font-style:normal;font-size:19px}
+.bottom button.active{color:var(--gold)}
 </style>
 </head>
 <body>
 <header><div class="crown">♛</div><div class="brand">MD ZE ZAYE</div><div class="sub">ANALYSE • STATISTIQUES • PRONOSTICS</div></header>
 <div class="wrap">
-<div class="tabs" id="tabs"><button class="active" data-page="fixtures">Matchs du jour</button><button data-page="filter">Filtre</button><button data-page="analysis">Analyse</button><button data-page="pronostics">Pronostics</button><button data-page="prediction">Prédiction</button></div>
-<section id="fixtures" class="page"><div class="card"><h2 class="title">Matchs du jour & calendrier</h2>
-<p class="hint">Connexion Internet nécessaire pour charger le calendrier. La disponibilité et la fraîcheur varient selon le championnat et la source.</p>
-<label>Championnats à charger</label>
-<div class="league-checks" id="leagueChecks">
-<label><input type="checkbox" value="PL" checked> Angleterre — Premier League</label>
-<label><input type="checkbox" value="PD" checked> Espagne — La Liga</label>
-<label><input type="checkbox" value="SA" checked> Italie — Serie A</label>
-<label><input type="checkbox" value="BL1" checked> Allemagne — Bundesliga</label>
-<label><input type="checkbox" value="FL1" checked> France — Ligue 1</label>
-<label><input type="checkbox" value="CL" checked> Ligue des Champions UEFA</label>
-<label><input type="checkbox" value="PPL"> Portugal — Primeira Liga</label>
-<label><input type="checkbox" value="DED"> Pays-Bas — Eredivisie</label>
-</div>
-<select id="fixtureLeague" class="hidden" aria-hidden="true">
-<option value="PL">Angleterre — Premier League</option><option value="PD">Espagne — La Liga</option><option value="SA">Italie — Serie A</option><option value="BL1">Allemagne — Bundesliga</option><option value="FL1">France — Ligue 1</option><option value="CL">Ligue des Champions UEFA</option><option value="PPL">Portugal — Primeira Liga</option><option value="DED">Pays-Bas — Eredivisie</option>
-</select>
-<label>Date</label><input id="fixtureDate" type="date"/>
-<div class="actions"><button class="btn" onclick="saveVisibleFixtures()">Enregistrer les matchs affichés</button></div>
-<div id="fixtureStatus" class="hint" style="margin-top:10px">Coche un ou plusieurs championnats : les matchs se chargent automatiquement.</div><div id="fixtureList"></div><div class="actions"><button id="startFilterBtn" class="btn primary" onclick="startFilterWithFixtures()" disabled>Démarrer → Envoyer les matchs au Filtre</button></div>
-</div><div class="warning">Calendrier connecté à football-data.org via le serveur MD ZE ZAYE. Les logos et scores s’affichent lorsqu’ils sont fournis par la source. Tirs, fautes, corners et cartons jaunes viennent de football-data.co.uk (grands championnats). Pour la Ligue des Champions, ce sont les moyennes du championnat national de chaque club. Les touches et le hors-jeu ne sont fournis par aucune source gratuite : ils s’affichent seulement si tu les as saisis.</div></section>
-<section id="home" class="page hidden">
-<div class="card"><h2 class="title">Centre d'analyse</h2><p>Analyse les matchs à partir de données saisies ou importées. Tes données restent sur cet appareil dans ce navigateur.</p><div class="grid"><div><div class="hint">Matchs enregistrés</div><div id="count" style="font-size:28px;color:var(--gold);font-weight:900">0</div></div><div><div class="hint">Marchés disponibles</div><div style="font-size:28px;color:var(--gold);font-weight:900">7</div></div></div><div class="actions"><button class="btn primary" onclick="show('add')">＋ Ajouter un match</button><button class="btn" onclick="show('import')">⇧ Importer CSV</button></div></div>
-<div class="card"><h3 class="title">Marchés couverts</h3><div class="grid"><span class="badge">⚽ Buts</span><span class="badge">🟨 Cartons</span><span class="badge">🎯 Tirs</span><span class="badge">⚑ Fautes</span><span class="badge">↔ Touches</span><span class="badge">⚐ Corners</span><span class="badge">⛳ Hors-jeu</span></div></div>
-<div class="card"><h3 class="title">Derniers matchs</h3><div id="recent" class="empty">Aucun match pour le moment. Ajoute un match ou importe un fichier CSV.</div></div>
-<div class="warning">Les estimations sont des calculs statistiques basés uniquement sur les données enregistrées. Elles ne garantissent pas les résultats. N'invente pas les valeurs manquantes.</div>
+
+<section id="fixtures" class="page">
+  <div class="card">
+    <h2 class="title">Matchs du jour</h2>
+    <div class="row">
+      <button class="btn" onclick="changeDay(-1)" aria-label="Jour précédent">◀</button>
+      <input id="dayInput" type="date" onchange="setDate(this.value)">
+      <button class="btn" onclick="changeDay(1)" aria-label="Jour suivant">▶</button>
+      <button class="btn" onclick="loadDay()">Actualiser</button>
+    </div>
+    <p class="hint" style="margin:10px 0 0">Tous les championnats et compétitions disponibles se chargent automatiquement.</p>
+  </div>
+  <div id="fixturesBody"></div>
 </section>
-<section id="add" class="page hidden"><div class="card"><h2 class="title">Enregistrer un match</h2><form id="matchForm"><div class="grid">
-<div class="full"><label>Compétition</label><input name="league" placeholder="Ex. Ligue 1" /></div>
-<div><label>Équipe à domicile *</label><input name="home" required placeholder="Équipe A"/></div><div><label>Équipe à l'extérieur *</label><input name="away" required placeholder="Équipe B"/></div>
-<div><label>Date du match</label><input name="date" type="date"/></div><div><label>Statut</label><select name="status"><option>Terminé</option><option>À venir</option></select></div>
-<div><label>Buts domicile</label><input name="hg" type="number" min="0" step="1"/></div><div><label>Buts extérieur</label><input name="ag" type="number" min="0" step="1"/></div>
-<div><label>Cartons jaunes domicile</label><input name="hy" type="number" min="0" step="1"/></div><div><label>Cartons jaunes extérieur</label><input name="ay" type="number" min="0" step="1"/></div>
-<div><label>Tirs domicile</label><input name="hs" type="number" min="0"/></div><div><label>Tirs extérieur</label><input name="as" type="number" min="0"/></div>
-<div><label>Fautes domicile</label><input name="hf" type="number" min="0"/></div><div><label>Fautes extérieur</label><input name="af" type="number" min="0"/></div>
-<div><label>Touches domicile</label><input name="ht" type="number" min="0"/></div><div><label>Touches extérieur</label><input name="at" type="number" min="0"/></div>
-<div><label>Corners domicile</label><input name="hc" type="number" min="0"/></div><div><label>Corners extérieur</label><input name="ac" type="number" min="0"/></div>
-<div><label>Hors-jeu domicile</label><input name="ho" type="number" min="0"/></div><div><label>Hors-jeu extérieur</label><input name="ao" type="number" min="0"/></div>
-<div class="full"><label>Notes / source des données</label><textarea name="notes" rows="2" placeholder="Source, contexte, informations utiles…"></textarea></div>
-</div><p class="hint">Seuls les champs renseignés seront analysés. Laisse vide une statistique inconnue.</p><div class="actions"><button class="btn primary" type="submit">Enregistrer le match</button><button class="btn" type="reset">Effacer le formulaire</button></div></form></div></section>
-<section id="history" class="page hidden"><div class="card"><h2 class="title">Historique des matchs</h2><div class="actions"><button class="btn" onclick="exportCSV()">Exporter CSV</button><button class="btn" onclick="clearAll()">Tout supprimer</button></div><div id="historyList"></div></div></section>
-<section id="import" class="page hidden"><div class="card"><h2 class="title">Importer un CSV</h2><p>Choisis un fichier CSV UTF-8. La première ligne doit contenir les noms de colonnes.</p><label>Fichier CSV</label><input type="file" id="csvfile" accept=".csv,text/csv"/><div class="actions"><button class="btn primary" onclick="importCSV()">Importer les matchs</button><button class="btn" onclick="downloadTemplate()">Télécharger un modèle CSV</button></div><p class="hint">Colonnes recommandées : league,home,away,date,status,hg,ag,hy,ay,hs,as,hf,af,ht,at,hc,ac,ho,ao,notes. Les nombres peuvent rester vides.</p><div id="importMsg" class="hint"></div></div></section>
-
-
 
 <section id="filter" class="page hidden">
-<div class="card"><h2 class="title">Filtre des matchs</h2>
-<p class="hint">Choisis les championnats dans « Matchs du jour », puis sélectionne le marché. Le filtre s’appuie uniquement sur les données disponibles.</p>
-<label>Marché à filtrer</label>
-<select id="filterMarket"><option value="shotsFor">Tirs</option><option value="foulsFor">Fautes</option><option value="cornersFor">Corners</option><option value="yellowFor">Cartons jaunes</option><option value="throwsFor">Touches</option></select>
-<label>Tendance recherchée</label>
-<select id="filterTrend"><option value="high">Tendance élevée</option><option value="low">Tendance faible</option><option value="any">Toutes les tendances avec données</option></select>
-<div class="actions"><button class="btn primary" onclick="runMarketFilter()">Filtrer les matchs chargés</button></div>
-<div id="filterStatus" class="hint">Charge d’abord les matchs du jour.</div><div id="filterList"></div>
-</div>
-<div class="warning">Un match n’est retenu que si la source fournit des données pour le marché sélectionné. Touches : elles peuvent rester indisponibles dans les sources gratuites.</div>
+  <div class="card">
+    <h2 class="title">Championnats</h2>
+    <div id="leagueBox"></div>
+  </div>
+  <div class="card">
+    <h2 class="title">Marché</h2>
+    <div class="chips" id="marketChips"></div>
+    <label class="l">Tendance recherchée</label>
+    <div class="chips" id="trendChips"></div>
+    <label class="l" id="lineLabel">Ligne</label>
+    <div class="stepper"><button onclick="stepLine(-1)" aria-label="Baisser la ligne">−</button><b id="lineVal">9,5</b><button onclick="stepLine(1)" aria-label="Monter la ligne">+</button></div>
+    <p class="hint" style="margin:10px 0 0" id="lineHelp"></p>
+  </div>
+  <div id="filterBody"></div>
 </section>
-<section id="pronostics" class="page hidden"><div class="card"><h2 class="title">Pronostics</h2><p class="hint">Les pronostics seront générés à partir des matchs retenus et de leur analyse. Une tendance statistique n’est jamais une garantie.</p><div id="pronosticsList" class="empty">Lance d’abord le filtre, puis ouvre Analyse pour examiner les résultats.</div></div></section>
-<section id="prediction" class="page hidden"><div class="card"><h2 class="title">Prédiction</h2><p>Rubrique réservée. Son rôle sera défini plus tard.</p><div class="warning">Aucune prédiction automatique n’est lancée dans cette rubrique pour le moment.</div></div></section>
-<section id="analysis" class="page hidden"><div class="card"><h2 class="title">Analyse statistique</h2><p class="hint">Les moyennes sont calculées uniquement sur les valeurs connues des matchs enregistrés.</p><label>Marché à analyser</label><select id="market"><option value="goals">Buts</option><option value="cards">Cartons jaunes</option><option value="shots">Tirs</option><option value="fouls">Fautes</option><option value="throws">Touches</option><option value="corners">Corners</option><option value="offsides">Hors-jeu</option></select><div id="analysisResult"></div></div></section>
+
+<section id="analysis" class="page hidden"><div id="analysisBody"></div></section>
+
+<section id="pronostics" class="page hidden"><div id="pronosBody"></div></section>
+
+<section id="prediction" class="page hidden">
+  <div class="card"><h2 class="title">Prédiction</h2>
+    <p>Rubrique réservée. Son rôle sera défini plus tard.</p>
+    <div class="warning">Aucune prédiction n’est lancée dans cette rubrique pour le moment.</div>
+  </div>
+</section>
+
 </div>
-<nav class="bottom"><button class="active" data-page="fixtures">⚽<br>Matchs du jour</button><button data-page="filter">☷<br>Filtre</button><button data-page="analysis">▥<br>Analyse</button><button data-page="pronostics">✓<br>Pronostics</button><button data-page="prediction">◉<br>Prédiction</button></nav>
+<nav class="bottom">
+  <button class="active" data-page="fixtures"><i>⚽</i>Matchs du jour</button>
+  <button data-page="filter"><i>☷</i>Filtre</button>
+  <button data-page="analysis"><i>▥</i>Analyse</button>
+  <button data-page="pronostics"><i>✓</i>Pronostics</button>
+  <button data-page="prediction"><i>◉</i>Prédiction</button>
+</nav>
+
 <script>
-const KEY='mdzz_matches_v1'; let matches=load(); let loadedFixtures=[]; document.getElementById('fixtureDate').value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-function load(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}}
-function save(){localStorage.setItem(KEY,JSON.stringify(matches));render()}
-function show(id){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===id));if(id==='analysis')renderAnalysis();window.scrollTo(0,0)}
-document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.page)));
-const form=document.getElementById('matchForm');
-form.addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(form),m={id:Date.now()};for(const [k,v] of fd.entries()){if(['hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao'].includes(k))m[k]=v.trim()===''?null:Number(v);else m[k]=v.trim()}matches.unshift(m);save();form.reset();show('history')});
-function render(){document.getElementById('count').textContent=matches.length;document.getElementById('recent').innerHTML=matches.length?matches.slice(0,4).map(card).join(''):'Aucun match pour le moment. Ajoute un match ou importe un fichier CSV.';document.getElementById('historyList').innerHTML=matches.length?matches.map(card).join(''):'<div class="empty">Historique vide.</div>';renderAnalysis()}
-function card(m){return `<div class="match"><strong>${esc(m.home||'?')} — ${esc(m.away||'?')}</strong><div class="hint">${esc(m.league||'Compétition non précisée')} · ${esc(m.date||'Date inconnue')} · ${esc(m.status||'')}</div><div style="margin-top:6px">${m.hg==null||m.ag==null?'Score : non renseigné':`Score : <b>${m.hg} - ${m.ag}</b>`}</div><div class="actions"><button class="btn" onclick="analyzeMatch(${m.id})">Analyser</button><button class="btn" onclick="delMatch(${m.id})">Supprimer</button></div><div id="detail-${m.id}"></div></div>`}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function delMatch(id){if(confirm('Supprimer ce match ?')){matches=matches.filter(m=>m.id!==id);save()}}
-function clearAll(){if(confirm('Supprimer tout l’historique ?')){matches=[];save()}}
-const markets={goals:{label:'Buts',h:'hg',a:'ag'},cards:{label:'Cartons jaunes',h:'hy',a:'ay'},shots:{label:'Tirs',h:'hs',a:'as'},fouls:{label:'Fautes',h:'hf',a:'af'},throws:{label:'Touches',h:'ht',a:'at'},corners:{label:'Corners',h:'hc',a:'ac'},offsides:{label:'Hors-jeu',h:'ho',a:'ao'}};
-function avg(arr){let x=arr.filter(v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))).map(Number);return x.length?{v:x.reduce((a,b)=>a+b,0)/x.length,n:x.length}:null}
-function renderAnalysis(){if(!document.getElementById('analysisResult'))return;const key=document.getElementById('market').value,market=markets[key],valid=matches.filter(m=>m[market.h]!=null&&m[market.a]!=null);let h=avg(valid.map(m=>m[market.h])),a=avg(valid.map(m=>m[market.a]));let html=`<div class="match"><div class="hint">Matchs avec données complètes pour ce marché</div><div style="font-size:25px;color:var(--gold);font-weight:900">${valid.length}</div></div>`;if(h&&a){let total=h.v+a.v;html+=`<div class="card"><h3 class="title">Moyennes observées — ${market.label}</h3><div class="statrow"><span>Domicile</span><b>${h.v.toFixed(1)}</b></div><div class="statrow"><span>Extérieur</span><b>${a.v.toFixed(1)}</b></div><div class="statrow"><span>Total moyen</span><b>${total.toFixed(1)}</b></div><div class="bar"><span style="width:${total?Math.max(2,Math.min(100,h.v/total*100)):0}%"></span></div><p class="hint">Ces moyennes décrivent les matchs enregistrés ; elles ne sont pas une probabilité prédictive calibrée. Échantillon : ${valid.length} match(s).</p></div>`}else html+='<div class="empty">Données insuffisantes. Enregistre au moins un match avec les deux valeurs du marché.</div>';document.getElementById('analysisResult').innerHTML=html}
-document.getElementById('market').addEventListener('change',renderAnalysis);
-function analyzeMatch(id){
- const m=matches.find(x=>x.id===id);if(!m)return;
- const root=document.getElementById('detail-'+id);if(!root)return;
- const num=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
- const pct=v=>(v*100).toFixed(1)+'%';
- const poisson=(k,lambda)=>{if(lambda<=0)return k===0?1:0;let p=Math.exp(-lambda);for(let i=1;i<=k;i++)p*=lambda/i;return p};
- const history=matches.filter(x=>x.id!==m.id&&x.status==='Terminé'&&num(x.hg)!==null&&num(x.ag)!==null);
- const teamHistory=(team,side)=>history.filter(x=>side==='home'?x.home===team:side==='away'?x.away===team:(x.home===team||x.away===team));
- const goalsFor=(team)=>{const xs=history.filter(x=>x.home===team||x.away===team);const scored=xs.map(x=>x.home===team?num(x.hg):num(x.ag)).filter(v=>v!==null);return scored.length?scored.reduce((a,b)=>a+b,0)/scored.length:null};
- const goalsAgainst=(team)=>{const xs=history.filter(x=>x.home===team||x.away===team);const vals=xs.map(x=>x.home===team?num(x.ag):num(x.hg)).filter(v=>v!==null);return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null};
- let out='<div class="match"><strong>Résumé des données disponibles</strong>';
- let known=0;Object.entries(markets).forEach(([k,v])=>{if(num(m[v.h])!==null&&num(m[v.a])!==null){known++;out+=`<div class="statrow"><span>${v.label}</span><b>${num(m[v.h])} - ${num(m[v.a])}</b></div>`}else out+=`<div class="statrow"><span>${v.label}</span><span class="hint">Données manquantes</span></div>`});
- out+=`<p class="hint">${known} marché(s) sur ${Object.keys(markets).length} disposent de données complètes. Les données manquantes ne sont pas inventées.</p></div>`;
- const hf=goalsFor(m.home),ha=goalsAgainst(m.home),af=goalsFor(m.away),aa=goalsAgainst(m.away);
- const sampleHome=history.filter(x=>x.home===m.home||x.away===m.home).length;
- const sampleAway=history.filter(x=>x.home===m.away||x.away===m.away).length;
- if([hf,ha,af,aa].every(v=>v!==null)&&sampleHome>=2&&sampleAway>=2){
-   const lh=Math.max(.15,Math.min(4,(hf+aa)/2*1.08));
-   const la=Math.max(.15,Math.min(4,(af+ha)/2*.92));
-   let ph=0,pd=0,pa=0,over15=0,over25=0,btts=0;
-   for(let h=0;h<=10;h++)for(let a=0;a<=10;a++){const p=poisson(h,lh)*poisson(a,la);if(h>a)ph+=p;else if(h===a)pd+=p;else pa+=p;if(h+a>=2)over15+=p;if(h+a>=3)over25+=p;if(h>0&&a>0)btts+=p;}
-   const expected=lh+la;
-   out+=`<div class="card"><h3 class="title">Probabilités estimées</h3><p class="hint">Calculées à partir des buts moyens de l'historique enregistré pour ces équipes. Échantillon : ${sampleHome} match(s) pour ${esc(m.home)} et ${sampleAway} pour ${esc(m.away)}.</p><div class="statrow"><span>Victoire ${esc(m.home)}</span><b>${pct(ph)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,ph*100))}%"></span></div><div class="statrow"><span>Match nul</span><b>${pct(pd)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,pd*100))}%"></span></div><div class="statrow"><span>Victoire ${esc(m.away)}</span><b>${pct(pa)}</b></div><div class="bar"><span style="width:${Math.max(0,Math.min(100,pa*100))}%"></span></div><h3 class="title" style="margin-top:14px">Prévisions de buts</h3><div class="statrow"><span>Buts attendus ${esc(m.home)}</span><b>${lh.toFixed(2)}</b></div><div class="statrow"><span>Buts attendus ${esc(m.away)}</span><b>${la.toFixed(2)}</b></div><div class="statrow"><span>Total attendu</span><b>${expected.toFixed(2)}</b></div><div class="statrow"><span>Plus de 1,5 but</span><b>${pct(over15)}</b></div><div class="statrow"><span>Plus de 2,5 buts</span><b>${pct(over25)}</b></div><div class="statrow"><span>Les deux équipes marquent</span><b>${pct(btts)}</b></div><p class="hint">Méthode indicative de type Poisson, non calibrée. Les probabilités ne sont pas des garanties et dépendent de la qualité de l'historique.</p></div>`;
- }else{
-   out+='<div class="card"><h3 class="title">Probabilités et prévisions</h3><p class="hint">Données insuffisantes pour produire une estimation raisonnable. Enregistre au moins 2 matchs terminés avec scores pour chacune des deux équipes, puis relance l’analyse. Aucun pourcentage fictif ne sera affiché.</p></div>';
- }
- const stats=[['Tirs','hs','as'],['Corners','hc','ac'],['Fautes','hf','af'],['Cartons jaunes','hy','ay'],['Touches','ht','at'],['Hors-jeu','ho','ao']];
- out+='<div class="card"><h3 class="title">Statistiques disponibles</h3>';
- stats.forEach(([label,h,a])=>{const hv=num(m[h]),av=num(m[a]);out+=`<div class="statrow"><span>${label}</span><b>${hv===null||av===null?'Données manquantes':hv+' - '+av}</b></div>`});
- out+='<p class="hint">Les statistiques ne sont pas automatiquement fournies pour tous les matchs par la source de calendrier. Renseigne-les manuellement ou importe-les en CSV.</p></div>';
- root.innerHTML=out;
-}
-function parseCSV(text){let rows=[],row=[],field='',q=false;for(let i=0;i<text.length;i++){let c=text[i],n=text[i+1];if(c==='"'&&q&&n==='"'){field+='"';i++}else if(c==='"'){q=!q}else if((c===','||c===';')&&!q){row.push(field.trim());field=''}else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(field.trim());if(row.some(x=>x!==''))rows.push(row);row=[];field=''}else field+=c}row.push(field.trim());if(row.some(x=>x!==''))rows.push(row);return rows}
-function importCSV(){const file=document.getElementById('csvfile').files[0],msg=document.getElementById('importMsg');if(!file){msg.textContent='Choisis d’abord un fichier CSV.';return}const r=new FileReader();r.onload=()=>{try{const rows=parseCSV(r.result);if(rows.length<2)throw Error('Le fichier ne contient pas de lignes de données.');const heads=rows.shift().map(x=>x.toLowerCase().replace(/^\ufeff/,''));let added=0;rows.forEach(row=>{let m={id:Date.now()+Math.random()};heads.forEach((h,i)=>{let v=row[i]??'';if(['hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao'].includes(h))m[h]=v===''?null:Number(v.replace(',','.'));else if(['league','home','away','date','status','notes'].includes(h))m[h]=v});if(m.home&&m.away){matches.unshift(m);added++}});save();msg.textContent=added+' match(s) importé(s).';}catch(e){msg.textContent='Erreur CSV : '+e.message}};r.readAsText(file,'UTF-8')}
-function downloadTemplate(){const csv='league,home,away,date,status,hg,ag,hy,ay,hs,as,hf,af,ht,at,hc,ac,ho,ao,notes\nLigue 1,Équipe A,Équipe B,2026-10-18,Terminé,2,1,1,2,5,4,12,10,20,22,6,3,1,2,Exemple à remplacer';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download='modele_md_ze_zaye.csv';a.click();URL.revokeObjectURL(a.href)}
-function exportCSV(){const keys=['league','home','away','date','status','hg','ag','hy','ay','hs','as','hf','af','ht','at','hc','ac','ho','ao','notes'];const quote=x=>'"'+String(x??'').replace(/"/g,'""')+'"';const txt=[keys.join(','),...matches.map(m=>keys.map(k=>quote(m[k])).join(','))].join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+txt],{type:'text/csv;charset=utf-8'}));a.download='md_ze_zaye_export.csv';a.click();URL.revokeObjectURL(a.href)}
+'use strict';
+const BASE = 'https://md-ze-zaye.onrender.com';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const f1 = v => v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1).replace('.', ',');
+const pc = v => Math.round(v * 100);
+const todayISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Porto-Novo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const hhmm = utc => utc ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'Africa/Porto-Novo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(utc)) : '--:--';
 
-async function loadFixtures(){
- const date=document.getElementById('fixtureDate').value || new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- const status=document.getElementById('fixtureStatus'), list=document.getElementById('fixtureList');
- const checks=Array.from(document.querySelectorAll('#leagueChecks input[type="checkbox"]:checked'));
- if(!checks.length){loadedFixtures=[];list.innerHTML='';status.textContent='Coche au moins un championnat.';const b=document.getElementById('startFilterBtn');if(b)b.disabled=true;return}
- const base='https://md-ze-zaye.onrender.com';
- const all=[]; list.innerHTML=''; status.textContent='Chargement des matchs pour '+checks.length+' championnat(s)…';
- const labels={PL:'Angleterre — Premier League',PD:'Espagne — La Liga',SA:'Italie — Serie A',BL1:'Allemagne — Bundesliga',FL1:'France — Ligue 1',CL:'Ligue des Champions UEFA',PPL:'Portugal — Primeira Liga',DED:'Pays-Bas — Eredivisie'};
- for(const check of checks){
-   const code=check.value;
-   const section=document.createElement('div');
-   section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||check.parentElement.textContent.trim())+'</h3><div class="hint">Chargement…</div>';
-   list.appendChild(section);
-   try{
-     const url=`${base}/competitions/${encodeURIComponent(code)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`;
-     const res=await fetch(url,{headers:{'Accept':'application/json'}});
-     const data=await res.json();
-     if(!res.ok) throw new Error(data.message||data.error||('Erreur HTTP '+res.status));
-     const arr=Array.isArray(data)?data:(Array.isArray(data.matches)?data.matches:[]);
-     const fixtures=arr.map((x,i)=>{
-       const ft=x.score?.fullTime||{}, utc=x.utcDate||'';
-       let kickoff=date;
-       if(utc){kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(utc))}
-       return {id:code+'-'+i,code,iso:date,league:x.competition?.name||labels[code]||code,competitionLogo:x.competition?.emblem||'',home:x.homeTeam?.name||'',away:x.awayTeam?.name||'',homeId:x.homeTeam?.id||null,awayId:x.awayTeam?.id||null,homeLogo:x.homeTeam?.crest||'',awayLogo:x.awayTeam?.crest||'',date:kickoff,status:x.status||'Programmé',hg:ft.home??null,ag:ft.away??null};
-     }).filter(x=>x.home&&x.away);
-     all.push(...fixtures);
-     section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||check.parentElement.textContent.trim())+'</h3>'+(fixtures.length?fixtures.map((m)=>`<div class="match"><div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">${m.competitionLogo?`<img src="${esc(m.competitionLogo)}" alt="" style="width:24px;height:24px;object-fit:contain">`:''}<span class="hint">${esc(m.league)}</span></div><div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc(m.homeLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?`${esc(m.hg)} - ${esc(m.ag)}`:'VS'}</b><div class="hint">${esc(m.date)}</div><span class="badge">${esc(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc(m.awayLogo)}" alt="" style="width:34px;height:34px;object-fit:contain;display:block;margin:0 auto 5px">`:''}<strong>${esc(m.away)}</strong></div></div><div id="fixture-detail-${all.indexOf(m)}"></div><button class="btn" onclick="showFixtureStats(${all.indexOf(m)})">Voir les statistiques</button></div>`).join(''):'<p class="hint">Aucun match disponible pour cette date dans ce championnat.</p>');
-   }catch(e){section.innerHTML='<h3 style="margin:18px 0 8px">'+(labels[code]||code)+'</h3><p class="hint">Impossible de charger ce championnat : '+esc(e.message)+'</p>'}
- }
- loadedFixtures=all;
- const b=document.getElementById('startFilterBtn');if(b)b.disabled=!all.length;
- status.textContent=all.length+' match(s) chargé(s) dans '+checks.length+' championnat(s).';
- window.__mdzzFilterInput=all.slice();
-}
+const COMP = {
+  PL: 'Angleterre — Premier League', ELC: 'Angleterre — Championship', PD: 'Espagne — La Liga', SA: 'Italie — Serie A',
+  BL1: 'Allemagne — Bundesliga', FL1: 'France — Ligue 1', PPL: 'Portugal — Primeira Liga', DED: 'Pays-Bas — Eredivisie',
+  CL: 'Ligue des Champions UEFA', BSA: 'Brésil — Série A', WC: 'Coupe du monde', EC: 'Championnat d’Europe'
+};
+const COVERED = new Set(['PL', 'ELC', 'PD', 'SA', 'BL1', 'FL1', 'PPL', 'DED', 'CL']);
+const DONE = new Set(['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED', 'AWARDED']);
 
-function saveVisibleFixtures(){if(!loadedFixtures.length){alert('Charge d’abord les matchs.');return}loadedFixtures.forEach((f,i)=>saveFixture(i));}
+// range = lignes « plausibles » (celles que proposent les bookmakers) pour le pronostic safe
+const MARKETS = {
+  shots:   { label: 'Tirs',           f: 'shotsFor',   a: 'shotsAgainst',   v: 'shotsVar',   def: 24.5, range: [18.5, 30.5], noun: 'tirs' },
+  fouls:   { label: 'Fautes',         f: 'foulsFor',   a: 'foulsAgainst',   v: 'foulsVar',   def: 24.5, range: [18.5, 30.5], noun: 'fautes' },
+  throws:  { label: 'Touches',        unavailable: true, def: 38.5, range: [30.5, 46.5], noun: 'touches' },
+  corners: { label: 'Corners',        f: 'cornersFor', a: 'cornersAgainst', v: 'cornersVar', def: 9.5,  range: [6.5, 12.5],  noun: 'corners' },
+  cards:   { label: 'Cartons jaunes', f: 'yellowFor',  a: 'yellowAgainst',  v: 'yellowVar',  def: 4.5,  range: [2.5, 6.5],   noun: 'cartons jaunes' }
+};
 
+// ---------- Préférences ----------
+const PK = 'mdzz_v2_prefs';
+let prefs = { leagues: [], market: 'corners', trend: 'high', lines: {}, safe: 0.8 };
+try { Object.assign(prefs, JSON.parse(localStorage.getItem(PK) || '{}')); } catch (e) { /* valeurs par défaut */ }
+if (!MARKETS[prefs.market]) prefs.market = 'corners';
+const savePrefs = () => { try { localStorage.setItem(PK, JSON.stringify(prefs)); } catch (e) { /* ignoré */ } };
+const lineOf = k => (prefs.lines && prefs.lines[k] != null) ? prefs.lines[k] : MARKETS[k].def;
 
+// ---------- État ----------
+let date = todayISO(), fixtures = [], dayState = 'idle', dayError = '';
+const statsMap = {};
+let statsLoading = false, statsError = '';
 
-
-render();
-</script>
-<script>
-/* MD ZE ZAYE - affichage des statistiques, probabilites 1X2 et corrections */
-(function () {
-  'use strict';
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-
-  var BASE = 'https://md-ze-zaye.onrender.com';
-
-  // ---------- Utilitaires ----------
-  function H(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-  function num(v) {
-    return v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null;
-  }
-  function f1(v) { return v == null ? '—' : (Math.round(v * 10) / 10).toFixed(1).replace('.', ','); }
-  function f2(v) { return v == null ? '—' : (Math.round(v * 100) / 100).toFixed(2).replace('.', ','); }
-  function todayISO() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Porto-Novo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  }
-  function frToIso(s) {
-    var m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(s || ''));
-    return m ? m[3] + '-' + m[2] + '-' + m[1] : String(s || '').slice(0, 10);
-  }
-  function persist() {
-    if (typeof save === 'function') save();
-    else { try { localStorage.setItem('mdzz_matches_v1', JSON.stringify(matches)); } catch (e) {} }
-  }
-
-  async function getJSON(url, tries) {
-    var last;
-    for (var t = 0; t < (tries || 2); t++) {
-      var ctrl = new AbortController();
-      var timer = setTimeout(function () { ctrl.abort(); }, 45000);
-      try {
-        var r = await fetch(url, { headers: { Accept: 'application/json' }, signal: ctrl.signal });
-        clearTimeout(timer);
-        var ct = (r.headers && r.headers.get('content-type')) || '';
-        if (ct.indexOf('json') === -1) throw new Error('Réponse inattendue du serveur (HTTP ' + r.status + ').');
-        var d = await r.json();
-        if (!r.ok) throw new Error(d.error || d.message || ('HTTP ' + r.status));
-        return d;
-      } catch (e) {
-        clearTimeout(timer);
-        last = e;
-        if (t < (tries || 2) - 1) await new Promise(function (res) { setTimeout(res, 1500); });
-      }
-    }
-    throw last;
-  }
-
-  // ---------- Styles ----------
-  var css = [
-    '.sx{margin-top:10px;cursor:default;text-align:left}',
-    '.sx-card{background:#0d0d0d;border:1px solid var(--line,#3c3218);border-radius:12px;padding:12px;margin:8px 0}',
-    '.sx-t{color:var(--gold,#f6c945);font-weight:800;font-size:14px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}',
-    '.sx-t small{color:var(--muted,#aaa69a);font-weight:500;font-size:11px;text-align:right}',
-    '.sx-head{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;text-align:center}',
-    '.sx-head img{width:36px;height:36px;object-fit:contain;display:block;margin:0 auto 4px}',
-    '.sx-head b{font-size:13px;line-height:1.2;display:block}',
-    '.sx-vs{color:var(--gold,#f6c945);font-weight:900;font-size:18px}',
-    '.sx-head small{color:var(--muted,#aaa69a);font-size:11px}',
-    '.sx-prob{display:flex;height:30px;border-radius:9px;overflow:hidden;background:#2a2a2a;font-size:12px;font-weight:800}',
-    '.sx-prob span{display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;color:#101010;white-space:nowrap}',
-    '.sx-prob .h{background:linear-gradient(90deg,#a87809,#ffe16a)}',
-    '.sx-prob .d{background:#b9b3a2}',
-    '.sx-prob .a{background:#7fb4e8}',
-    '.sx-legend{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;font-size:11px;color:#d4c9a9;text-align:center}',
-    '.sx-form{padding:8px 0;border-bottom:1px solid #29251b}',
-    '.sx-form:last-child{border:0}',
-    '.sx-form-top{display:flex;justify-content:space-between;align-items:center;gap:8px}',
-    '.sx-name{font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '.sx-p{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;font-size:11px;font-weight:800;margin-left:3px;color:#111}',
-    '.sx-p.V{background:#5cc98a}.sx-p.N{background:#b9b3a2}.sx-p.D{background:#e45d5d}',
-    '.sx-sub{font-size:11px;color:var(--muted,#aaa69a);margin-top:4px}',
-    '.sx-row{display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #29251b}',
-    '.sx-row:last-child{border:0}',
-    '.sx-v{font-weight:850;font-size:16px}.sx-v.r{text-align:right}',
-    '.sx-c{text-align:center}.sx-lab{font-size:12px;color:#d4c9a9;margin-bottom:4px}',
-    '.sx-bar{display:flex;height:6px;border-radius:9px;overflow:hidden;background:#2a2a2a}',
-    '.sx-bar i{display:block;height:100%}.sx-bar .h{background:linear-gradient(90deg,#a87809,#ffe16a)}.sx-bar .a{background:#5b5b5b}',
-    '.sx-row.na{display:flex;justify-content:space-between;gap:10px}',
-    '.sx-na{font-size:12px;color:var(--muted,#aaa69a);text-align:right}',
-    '.sx-est{display:grid;grid-template-columns:48px 1fr 48px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #29251b;font-size:13px}',
-    '.sx-est:last-child{border:0}.sx-est b{text-align:center;font-weight:600;color:#d4c9a9;font-size:12px}.sx-est b em{color:var(--gold,#f6c945);font-style:normal;font-weight:800}',
-    '.sx-est span{font-weight:800}.sx-est span:last-child{text-align:right}',
-    '.sx-warn{font-size:12px;color:#e8d8a5;background:#171207;border:1px solid #684d16;border-radius:10px;padding:9px;margin:6px 0}'
-  ].join('');
-  var styleEl = document.createElement('style');
-  styleEl.textContent = css;
-  document.head.appendChild(styleEl);
-
-  // ---------- Probabilités (Poisson) ----------
-  function pois(k, l) { var p = Math.exp(-l); for (var i = 1; i <= k; i++) p *= l / i; return p; }
-
-  function outcome(lh, la) {
-    var h = 0, d = 0, a = 0;
-    for (var i = 0; i <= 10; i++) {
-      for (var j = 0; j <= 10; j++) {
-        var p = pois(i, lh) * pois(j, la);
-        if (i > j) h += p; else if (i === j) d += p; else a += p;
-      }
-    }
-    var t = h + d + a;
-    var ph = Math.round(h / t * 100), pa = Math.round(a / t * 100);
-    return [ph, 100 - ph - pa, pa];
-  }
-
-  function isCross(s) {
-    return !!(s && (s.cross || (s.home && s.away && s.home.league && s.away.league && s.home.league !== s.away.league)));
-  }
-
-  function goalMarkets(lh, la) {
-    var o15 = 0, o25 = 0, bt = 0, tot = 0;
-    for (var i = 0; i <= 10; i++) {
-      for (var j = 0; j <= 10; j++) {
-        var p = pois(i, lh) * pois(j, la);
-        tot += p;
-        if (i + j >= 2) o15 += p;
-        if (i + j >= 3) o25 += p;
-        if (i > 0 && j > 0) bt += p;
-      }
-    }
-    return [Math.round(o15 / tot * 100), Math.round(o25 / tot * 100), Math.round(bt / tot * 100)];
-  }
-
-  function computeLambdas(s, hf, af) {
-    var ok = s && !s.error && s.home && s.home.all && s.away && s.away.all;
-    var LH = ok && (s.home.leagueAverages || s.leagueAverages);
-    var LA = ok && (s.away.leagueAverages || s.leagueAverages);
-    ok = ok && LH && LA && LH.homeGoals > 0 && LH.awayGoals > 0 && LA.homeGoals > 0 && LA.awayGoals > 0;
-    if (ok) {
-      var K = 4;
-      var avgH = (LH.homeGoals + LH.awayGoals) / 2, avgA = (LA.homeGoals + LA.awayGoals) / 2;
-      var st = function (x, n, avg) { return (n * (x / avg) + K) / (n + K); };
-      var Hh = s.home.all, A = s.away.all;
-      var baseH = (LH.homeGoals + LA.homeGoals) / 2, baseA = (LH.awayGoals + LA.awayGoals) / 2;
-      var lh = baseH * st(Hh.goalsFor, Hh.n, avgH) * st(A.goalsAgainst, A.n, avgA);
-      var la = baseA * st(A.goalsFor, A.n, avgA) * st(Hh.goalsAgainst, Hh.n, avgH);
-      var n = Math.min(Hh.n, A.n);
-      var cross = isCross(s);
-      return {
-        lh: Math.max(0.1, lh), la: Math.max(0.1, la), n: n,
-        basis: cross
-          ? 'moyennes des championnats nationaux (' + n + ' matchs minimum par équipe) ; les deux clubs viennent de championnats différents et l’écart de niveau entre ces championnats n’est pas pris en compte'
-          : 'moyennes de la saison ' + s.season + ' (' + n + ' matchs minimum par équipe), corrigées par la moyenne du championnat',
-        level: cross ? 'faible' : (n >= 10 ? 'bonne' : n >= 5 ? 'moyenne' : 'faible')
-      };
-    }
-    if (hf.xs.length >= 3 && af.xs.length >= 3) {
-      var m = Math.min(hf.xs.length, af.xs.length);
-      return {
-        lh: Math.max(0.1, (hf.avgf + af.avga) / 2), la: Math.max(0.1, (af.avgf + hf.avga) / 2), n: m,
-        basis: 'seulement les ' + m + ' derniers matchs de chaque équipe',
-        level: 'faible'
-      };
-    }
-    return null;
-  }
-
-  // ---------- Historique des 5 derniers matchs ----------
-  async function recentApi(teamId, team) {
-    if (!teamId) return null;
+async function api(path, opts, tries) {
+  let last;
+  for (let t = 0; t < (tries || 2); t++) {
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), 45000);
     try {
-      var d = await getJSON(BASE + '/teams/' + encodeURIComponent(teamId) + '/matches?status=FINISHED&limit=5', 1);
-      var xs = (d.matches || []).map(function (x) {
-        return {
-          home: (x.homeTeam && x.homeTeam.name) || '', away: (x.awayTeam && x.awayTeam.name) || '',
-          date: (x.utcDate || '').slice(0, 10),
-          hg: num(x.score && x.score.fullTime && x.score.fullTime.home),
-          ag: num(x.score && x.score.fullTime && x.score.fullTime.away)
-        };
-      }).filter(function (x) { return x.home && x.away && x.hg !== null && x.ag !== null; });
-      if (xs.length) return summarize(xs, team, 'api');
-    } catch (e) { /* on passe aux autres sources */ }
-    return null;
-  }
-
-  // Sans identifiant d'équipe (match enregistré avant) : derniers matchs du championnat national, puis historique local
-  function recentFallback(team, side) {
-    if (side && side.recent && side.recent.length) {
-      var cs = side.recent.map(function (x) {
-        return { home: x.home, away: x.away, date: x.date, hg: num(x.hg), ag: num(x.ag) };
-      }).filter(function (x) { return x.hg !== null && x.ag !== null; });
-      if (cs.length) return summarize(cs, side.matched, 'csv');
-    }
-    var local = matches.filter(function (x) {
-      return String(x.status || '').toLowerCase().indexOf('termin') !== -1 &&
-        num(x.hg) !== null && num(x.ag) !== null && (x.home === team || x.away === team);
-    }).sort(function (a, b) { return String(frToIso(a.date)).localeCompare(String(frToIso(b.date))); })
-      .slice(-5);
-    return summarize(local, team, 'local');
-  }
-
-  function summarize(xs, team, src) {
-    var gf = 0, ga = 0, w = 0, d = 0, l = 0;
-    xs.forEach(function (x) {
-      var home = x.home === team;
-      var sc = num(home ? x.hg : x.ag), co = num(home ? x.ag : x.hg);
-      if (sc === null || co === null) return;
-      gf += sc; ga += co;
-      if (sc > co) w++; else if (sc === co) d++; else l++;
-    });
-    return { xs: xs, src: src, team: team, w: w, d: d, l: l, avgf: xs.length ? gf / xs.length : null, avga: xs.length ? ga / xs.length : null };
-  }
-
-  function pills(t, team) {
-    return t.xs.map(function (x) {
-      var home = x.home === team;
-      var g = home ? x.hg : x.ag, c = home ? x.ag : x.hg;
-      var r = g > c ? 'V' : g === c ? 'N' : 'D';
-      return '<span class="sx-p ' + r + '" title="' + H(x.home + ' ' + x.hg + '-' + x.ag + ' ' + x.away) + '">' + r + '</span>';
-    }).join('');
-  }
-
-  // Moyenne locale (touches, hors-jeu…) à partir des matchs saisis ou importés
-  function localAvg(team, hk, ak) {
-    var vals = [];
-    matches.forEach(function (m) {
-      var h = num(m[hk]), a = num(m[ak]);
-      if (h === null || a === null) return;
-      if (m.home === team) vals.push([h, a]); else if (m.away === team) vals.push([a, h]);
-    });
-    if (!vals.length) return null;
-    var n = vals.length;
-    return {
-      n: n,
-      f: vals.reduce(function (s, v) { return s + v[0]; }, 0) / n,
-      a: vals.reduce(function (s, v) { return s + v[1]; }, 0) / n
-    };
-  }
-
-  // ---------- Rendu ----------
-  function rowHtml(label, h, a) {
-    if (h == null || a == null) {
-      return '<div class="sx-row na"><div class="sx-lab" style="margin:0">' + label + '</div><div class="sx-na">Non disponible</div></div>';
-    }
-    var t = h + a, share = t > 0 ? Math.round(h / t * 100) : 50;
-    return '<div class="sx-row"><div class="sx-v">' + f1(h) + '</div><div class="sx-c"><div class="sx-lab">' + label +
-      '</div><div class="sx-bar"><i class="h" style="width:' + share + '%"></i><i class="a" style="width:' + (100 - share) + '%"></i></div></div><div class="sx-v r">' + f1(a) + '</div></div>';
-  }
-
-  function teamCell(name, logo) {
-    return '<div>' + (logo ? '<img src="' + H(logo) + '" alt="">' : '') + '<b>' + H(name) + '</b></div>';
-  }
-
-  function render(f, hf, af, stats, opts) {
-    opts = opts || {};
-    var out = '<div class="sx" onclick="event.stopPropagation()">';
-
-    // 1) En-tête
-    out += '<div class="sx-card"><div class="sx-head">' + teamCell(f.home, f.homeLogo) +
-      '<div><div class="sx-vs">' + (f.hg != null && f.ag != null ? H(f.hg) + ' - ' + H(f.ag) : 'VS') + '</div><small>' + H(f.date) + '</small></div>' +
-      teamCell(f.away, f.awayLogo) + '</div></div>';
-
-    // 1b) Statistiques saisies pour ce match (match enregistré dans l'historique)
-    if (opts.own) {
-      var ownRows = '';
-      [['Buts', 'hg', 'ag'], ['Tirs', 'hs', 'as'], ['Fautes', 'hf', 'af'], ['Corners', 'hc', 'ac'],
-       ['Cartons jaunes', 'hy', 'ay'], ['Touches', 'ht', 'at'], ['Hors-jeu', 'ho', 'ao']].forEach(function (d) {
-        var hv = num(opts.own[d[1]]), av = num(opts.own[d[2]]);
-        if (hv !== null && av !== null) ownRows += '<div class="sx-est"><span>' + hv + '</span><b>' + d[0] + '</b><span>' + av + '</span></div>';
-      });
-      if (ownRows) out += '<div class="sx-card"><div class="sx-t">Statistiques enregistrées pour ce match</div>' + ownRows + '</div>';
-    }
-
-    // 2) Probabilités
-    var lam = computeLambdas(stats, hf, af);
-    if (lam) {
-      var p = outcome(lam.lh, lam.la);
-      var gm = goalMarkets(lam.lh, lam.la);
-      out += '<div class="sx-card"><div class="sx-t">Probabilités du match<small>Fiabilité : ' + lam.level + '</small></div>' +
-        '<div class="sx-prob"><span class="h" style="width:' + p[0] + '%">' + p[0] + '%</span><span class="d" style="width:' + p[1] + '%">' + p[1] + '%</span><span class="a" style="width:' + p[2] + '%">' + p[2] + '%</span></div>' +
-        '<div class="sx-legend"><span>Victoire<br>' + H(f.home) + '</span><span>Match nul</span><span>Victoire<br>' + H(f.away) + '</span></div>' +
-        '<div class="sx-sub" style="margin-top:8px">Plus de 1,5 but : <b>' + gm[0] + ' %</b> · Plus de 2,5 buts : <b>' + gm[1] + ' %</b> · Les deux équipes marquent : <b>' + gm[2] + ' %</b></div>' +
-        '<p class="hint" style="margin:10px 0 0">Buts attendus : ' + f2(lam.lh) + ' – ' + f2(lam.la) + '. Base de calcul : ' + H(lam.basis) +
-        '. Estimation statistique indicative, sans cotes ni blessures : ce n’est pas une garantie.</p></div>';
-    } else {
-      out += '<div class="sx-card"><div class="sx-t">Probabilités du match</div><div class="sx-warn">Données insuffisantes : il faut les moyennes de saison du championnat, ou au moins 3 matchs récents pour chaque équipe. Aucun pourcentage n’est inventé.</div></div>';
-    }
-
-    // 3) Forme
-    function formRow(name, t) {
-      if (!t.xs.length) {
-        return '<div class="sx-form"><div class="sx-form-top"><span class="sx-name">' + H(name) + '</span></div><div class="sx-sub">Historique indisponible (le serveur n’a rien renvoyé et aucun match n’est enregistré).</div></div>';
-      }
-      return '<div class="sx-form"><div class="sx-form-top"><span class="sx-name">' + H(name) + '</span><span>' + pills(t, t.team) + '</span></div>' +
-        '<div class="sx-sub">' + t.w + ' V · ' + t.d + ' N · ' + t.l + ' D — buts marqués ' + f1(t.avgf) + ' / encaissés ' + f1(t.avga) + ' par match' +
-        (t.src === 'local' ? ' (historique enregistré sur ton téléphone)' : t.src === 'csv' ? ' (matchs de son championnat national)' : '') + '</div></div>';
-    }
-    out += '<div class="sx-card"><div class="sx-t">Forme<small>5 derniers matchs, du plus ancien au plus récent</small></div>' + formRow(f.home, hf) + formRow(f.away, af) + '</div>';
-
-    // 4) Statistiques moyennes par match
-    var ok = stats && !stats.error && stats.home && stats.home.all && stats.away && stats.away.all;
-    var defs = [
-      ['Tirs', 'shotsFor', 'shotsAgainst'],
-      ['Fautes', 'foulsFor', 'foulsAgainst'],
-      ['Corners', 'cornersFor', 'cornersAgainst'],
-      ['Cartons jaunes', 'yellowFor', 'yellowAgainst']
-    ];
-    var rows = '', est = '';
-    var note = '';
-
-    if (ok) {
-      defs.forEach(function (d) {
-        var hv = stats.home.all[d[1]], av = stats.away.all[d[1]];
-        rows += rowHtml(d[0], hv, av);
-        var eh = (stats.home.all[d[1]] + stats.away.all[d[2]]) / 2;
-        var ea = (stats.away.all[d[1]] + stats.home.all[d[2]]) / 2;
-        est += '<div class="sx-est"><span>' + f1(eh) + '</span><b>' + d[0] + ' · total <em>' + f1(eh + ea) + '</em></b><span>' + f1(ea) + '</span></div>';
-      });
-      if (isCross(stats)) {
-        note = (stats.league === 'CL'
-          ? 'Ligue des Champions : aucune source gratuite ne donne ses statistiques. Ces moyennes viennent du championnat national de chaque club, pas de matchs de Ligue des Champions : '
-          : 'Moyennes de chaque club dans son championnat national : ') +
-          H(stats.home.matched) + ' (' + H(stats.home.leagueLabel) + ', ' + H(stats.home.season) + ', ' + stats.home.all.n + ' matchs) / ' +
-          H(stats.away.matched) + ' (' + H(stats.away.leagueLabel) + ', ' + H(stats.away.season) + ', ' + stats.away.all.n + ' matchs).';
-      } else {
-        note = 'Source : ' + H(stats.source) + ' · saison ' + H(stats.season) + ' · ' + H(stats.home.matched) + ' (' + stats.home.all.n + ' matchs) / ' + H(stats.away.matched) + ' (' + stats.away.all.n + ' matchs).';
-      }
-    } else {
-      var why = stats && stats.error ? stats.error : 'Équipe introuvable dans la source.';
-      if (stats && !stats.error) {
-        if (stats.home && !stats.home.matched) why = '« ' + stats.home.requested + ' » introuvable dans la source.';
-        else if (stats.away && !stats.away.matched) why = '« ' + stats.away.requested + ' » introuvable dans la source.';
-      }
-      rows += '<div class="sx-warn">Statistiques détaillées indisponibles : ' + H(why) + '</div>';
-      defs.forEach(function (d) { rows += rowHtml(d[0], null, null); });
-    }
-
-    // Touches et hors-jeu : jamais fournis par une source gratuite → historique local uniquement
-    [['Touches', 'ht', 'at'], ['Hors-jeu', 'ho', 'ao']].forEach(function (d) {
-      var hl = localAvg(f.home, d[1], d[2]), al = localAvg(f.away, d[1], d[2]);
-      if (hl && al) {
-        rows += rowHtml(d[0], hl.f, al.f);
-        var eh2 = (hl.f + al.a) / 2, ea2 = (al.f + hl.a) / 2;
-        est += '<div class="sx-est"><span>' + f1(eh2) + '</span><b>' + d[0] + ' · total <em>' + f1(eh2 + ea2) + '</em></b><span>' + f1(ea2) + '</span></div>';
-      } else {
-        rows += rowHtml(d[0], null, null);
-      }
-    });
-
-    out += '<div class="sx-card"><div class="sx-t">Statistiques moyennes par match<small>domicile à gauche · extérieur à droite</small></div>' + rows +
-      '<p class="hint" style="margin:8px 0 0">' + note + ' Touches et hors-jeu : aucune source gratuite ne les fournit ; elles ne s’affichent que si tu as enregistré des matchs avec ces valeurs pour les deux équipes.</p></div>';
-
-    if (est) {
-      out += '<div class="sx-card"><div class="sx-t">Estimation pour ce match<small>moyenne entre attaque et défense adverse</small></div>' + est +
-        '<p class="hint" style="margin:8px 0 0">Calcul indicatif à partir des moyennes ci-dessus (domicile · total · extérieur).</p></div>';
-    }
-
-    out += (opts.closeHtml || '') + '</div>';
-    return out;
-  }
-
-  // ---------- Remplacement des fonctions de index.html ----------
-  var origLoad = window.loadFixtures;
-  window.loadFixtures = async function () {
-    await origLoad.apply(this, arguments);
-    var code = document.getElementById('fixtureLeague').value;
-    var iso = document.getElementById('fixtureDate').value || todayISO();
-    (loadedFixtures || []).forEach(function (f) { f.code = code; f.iso = iso; });
-  };
-
-  function leagueCode(name) {
-    var t = String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (/champions/.test(t)) return 'CL';
-    if (/scottish|premiership/.test(t)) return 'SC0';
-    if (/premier league/.test(t) && !/russia|ukrain|egypt/.test(t)) return 'PL';
-    if (/primera division|la ?liga/.test(t) && !/segunda/.test(t)) return 'PD';
-    if (/serie a/.test(t)) return 'SA';
-    if (/bundesliga/.test(t) && !/2\.|zweite|austria/.test(t)) return 'BL1';
-    if (/ligue 1/.test(t)) return 'FL1';
-    if (/primeira liga|liga portugal/.test(t)) return 'PPL';
-    if (/eredivisie/.test(t)) return 'DED';
-    if (/super lig/.test(t)) return 'T1';
-    if (/pro league|jupiler/.test(t)) return 'B1';
-    return '';
-  }
-
-  async function panel(f, code, opts) {
-    var statsUrl = function (c) {
-      return BASE + '/stats/match?league=' + encodeURIComponent(c) + '&home=' + encodeURIComponent(f.home) + '&away=' + encodeURIComponent(f.away);
-    };
-    var res = await Promise.all([
-      recentApi(f.homeId, f.home),
-      recentApi(f.awayId, f.away),
-      getJSON(statsUrl(code), 2).catch(function (e) { return { error: e.message }; })
-    ]);
-    var stats = res[2];
-    // championnat mal deviné : on cherche les deux clubs dans tous les championnats disponibles
-    if (code !== 'ANY' && code !== 'CL' && stats && !stats.error && stats.home && stats.away && (!stats.home.matched || !stats.away.matched)) {
-      var again = await getJSON(statsUrl('ANY'), 1).catch(function () { return null; });
-      if (again && !again.error) stats = again;
-    }
-    var hf = res[0] || recentFallback(f.home, stats && stats.home);
-    var af = res[1] || recentFallback(f.away, stats && stats.away);
-    return render(f, hf, af, stats, opts);
-  }
-
-  window.showFixtureStats = async function (i) {
-    var f = loadedFixtures[i], root = document.getElementById('fixture-detail-' + i);
-    if (!f || !root) return;
-    root.innerHTML = '<div class="sx-card"><p class="hint" style="margin:0">Chargement… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</p></div>';
-    var code = f.code || document.getElementById('fixtureLeague').value;
-    var html = await panel(f, code, {
-      closeHtml: '<button class="btn" onclick="event.stopPropagation();toggleFixtureStats(' + i + ')">Fermer les statistiques</button>'
-    });
-    if (root.dataset.open !== 'yes') return;
-    root.innerHTML = html;
-  };
-
-  // « Analyser » dans l'historique : même panneau que « Voir les statistiques »
-  window.analyzeMatch = async function (id) {
-    var m = matches.find(function (x) { return x.id === id; });
-    var root = document.getElementById('detail-' + id);
-    if (!m || !root) return;
-    root.innerHTML = '<div class="sx-card"><p class="hint" style="margin:0">Analyse en cours… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</p></div>';
-    var f = {
-      home: m.home, away: m.away, homeLogo: '', awayLogo: '', date: m.date || '',
-      hg: num(m.hg), ag: num(m.ag), homeId: m.homeId || null, awayId: m.awayId || null
-    };
-    var close = '<button class="btn" onclick="event.stopPropagation();document.getElementById(\'detail-' + id + '\').innerHTML=\'\'">Fermer l’analyse</button>';
-    try {
-      root.innerHTML = await panel(f, m.code || leagueCode(m.league) || 'ANY', { closeHtml: close, own: m });
+      const r = await fetch(BASE + path, Object.assign({ signal: ctrl.signal, headers: { Accept: 'application/json' } }, opts || {}));
+      clearTimeout(timer);
+      if (!(r.headers.get('content-type') || '').includes('json')) throw new Error('Réponse inattendue du serveur (HTTP ' + r.status + ').');
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.message || d.error || ('HTTP ' + r.status));
+      return d;
     } catch (e) {
-      root.innerHTML = '<div class="sx-card"><div class="sx-warn">Analyse impossible : ' + H(e.message) + '</div></div>';
+      clearTimeout(timer);
+      last = e.name === 'AbortError' ? new Error('Le serveur met trop de temps à répondre (il se réveille peut-être).') : e;
+      if (t < (tries || 2) - 1) await new Promise(r => setTimeout(r, 2000));
     }
-  };
-
-  function isoOf(f) { return f.iso || frToIso(f.date); }
-  function appStatus(s) { return s === 'FINISHED' || s === 'AWARDED' ? 'Terminé' : 'À venir'; }
-
-  function addFixture(i, silent) {
-    var f = loadedFixtures[i];
-    if (!f) return false;
-    var iso = isoOf(f);
-    var dup = matches.some(function (m) { return m.home === f.home && m.away === f.away && frToIso(m.date) === iso; });
-    if (dup) { if (!silent) alert('Ce match est déjà dans ton historique.'); return false; }
-    var done = appStatus(f.status) === 'Terminé';
-    matches.unshift({
-      id: Date.now() + Math.random(), league: f.league, code: f.code || '', homeId: f.homeId || null, awayId: f.awayId || null,
-      home: f.home, away: f.away, date: iso,
-      status: appStatus(f.status),
-      hg: done && f.hg != null ? Number(f.hg) : null, ag: done && f.ag != null ? Number(f.ag) : null,
-      hy: null, ay: null, hs: null, as: null, hf: null, af: null, ht: null, at: null, hc: null, ac: null, ho: null, ao: null,
-      notes: 'Calendrier importé depuis une source publique ; statistiques détaillées non fournies automatiquement.'
-    });
-    if (!silent) { persist(); alert('Match ajouté. Les statistiques non fournies restent vides.'); }
-    return true;
   }
-  window.saveFixture = function (i) { addFixture(i, false); };
+  throw last;
+}
 
-  window.saveVisibleFixtures = function () {
-    if (!loadedFixtures.length) { alert('Charge d’abord les matchs.'); return; }
-    var added = 0;
-    loadedFixtures.forEach(function (f, i) { if (addFixture(i, true)) added++; });
-    if (added) persist();
-    alert(added + ' match(s) ajouté(s)' + (added < loadedFixtures.length ? ' · ' + (loadedFixtures.length - added) + ' déjà présent(s).' : '.'));
-  };
+// ---------- Matchs du jour ----------
+async function loadDay() {
+  dayState = 'loading'; dayError = ''; renderAll();
+  try {
+    const d = await api('/matches?dateFrom=' + encodeURIComponent(date) + '&dateTo=' + encodeURIComponent(date));
+    fixtures = (d.matches || []).map(x => ({
+      id: String(x.id), code: (x.competition && x.competition.code) || '', comp: (x.competition && x.competition.name) || '',
+      emblem: (x.competition && x.competition.emblem) || '', utc: x.utcDate || '', status: x.status || '',
+      home: (x.homeTeam && x.homeTeam.name) || '', away: (x.awayTeam && x.awayTeam.name) || '',
+      homeLogo: (x.homeTeam && x.homeTeam.crest) || '', awayLogo: (x.awayTeam && x.awayTeam.crest) || '',
+      hg: x.score && x.score.fullTime ? x.score.fullTime.home : null, ag: x.score && x.score.fullTime ? x.score.fullTime.away : null
+    })).filter(x => x.home && x.away).sort((a, b) => String(a.utc).localeCompare(String(b.utc)));
+    dayState = 'ok';
+  } catch (e) { dayState = 'error'; dayError = e.message; fixtures = []; }
+  renderAll(); ensureStats();
+}
+function setDate(v) { if (v) { date = v; loadDay(); } }
+function changeDay(n) { const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); date = d.toISOString().slice(0, 10); loadDay(); }
+const compLabel = (code, name) => COMP[code] || name || code || 'Compétition';
 
-  // Réparation unique des anciens matchs enregistrés (statut API et date « jj/mm/aaaa »)
-  (function migrate() {
-    var apiStatuses = ['FINISHED', 'AWARDED', 'SCHEDULED', 'TIMED', 'IN_PLAY', 'PAUSED', 'POSTPONED', 'SUSPENDED', 'CANCELLED', 'Programmé'];
-    var changed = false;
-    matches.forEach(function (m) {
-      if (apiStatuses.indexOf(m.status) !== -1) { m.status = appStatus(m.status); changed = true; }
-      if (/^\d{2}\/\d{2}\/\d{4}/.test(String(m.date || ''))) { m.date = frToIso(m.date); changed = true; }
-    });
-    if (changed) persist();
-  })();
-})();
+function statusBadge(f) {
+  if (f.status === 'FINISHED') return '<span class="badge g">Terminé</span>';
+  if (f.status === 'IN_PLAY' || f.status === 'PAUSED') return '<span class="badge r">En cours</span>';
+  if (f.status === 'POSTPONED') return '<span class="badge">Reporté</span>';
+  if (f.status === 'CANCELLED') return '<span class="badge">Annulé</span>';
+  return '';
+}
+function matchRow(f, right) {
+  const score = f.hg != null && f.ag != null ? '<b>' + esc(f.hg) + ' - ' + esc(f.ag) + '</b>' : '';
+  return '<div class="m"><div class="t">' + hhmm(f.utc) + '</div><div class="n"><span>' + (f.homeLogo ? '<img src="' + esc(f.homeLogo) + '" alt="">' : '') + esc(f.home) +
+    '</span><span>' + (f.awayLogo ? '<img src="' + esc(f.awayLogo) + '" alt="">' : '') + esc(f.away) + '</span></div><div class="s">' + (right || (score + statusBadge(f))) + '</div></div>';
+}
+function groupByComp(list) {
+  const g = {};
+  list.forEach(f => { const k = f.code || f.comp; (g[k] = g[k] || { code: f.code, name: f.comp, emblem: f.emblem, items: [] }).items.push(f); });
+  return Object.values(g);
+}
+
+function renderFixtures() {
+  $('dayInput').value = date;
+  let h = '';
+  if (dayState === 'loading') h = '<div class="card empty">Chargement des matchs… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</div>';
+  else if (dayState === 'error') h = '<div class="card"><div class="warning">Impossible de charger les matchs : ' + esc(dayError) + '</div><button class="btn primary" onclick="loadDay()">Réessayer</button></div>';
+  else if (!fixtures.length) h = '<div class="card empty">Aucun match trouvé pour cette date dans les compétitions disponibles.</div>';
+  else {
+    h = '<div class="card"><div class="hint">' + fixtures.length + ' match(s) · ' + groupByComp(fixtures).length + ' compétition(s)</div>' +
+      groupByComp(fixtures).map(g => '<div class="grp">' + (g.emblem ? '<img src="' + esc(g.emblem) + '" alt="">' : '') + esc(compLabel(g.code, g.name)) + '</div>' + g.items.map(f => matchRow(f)).join('')).join('') + '</div>';
+  }
+  $('fixturesBody').innerHTML = h;
+}
+
+// ---------- Filtre ----------
+function toggleLeague(code, on) { const s = new Set(prefs.leagues); on ? s.add(code) : s.delete(code); prefs.leagues = [...s]; savePrefs(); renderAll(); ensureStats(); }
+function selectAll(on) { prefs.leagues = on ? groupByComp(fixtures).map(g => g.code).filter(c => COVERED.has(c)) : []; savePrefs(); renderAll(); ensureStats(); }
+function setMarket(k) { prefs.market = k; savePrefs(); renderAll(); }
+function setTrend(t) { prefs.trend = t; savePrefs(); renderAll(); }
+function stepLine(d) { const k = prefs.market, v = Math.max(0.5, lineOf(k) + d); prefs.lines = Object.assign({}, prefs.lines, { [k]: v }); savePrefs(); renderAll(); }
+function setSafe(v) { prefs.safe = v; savePrefs(); renderAll(); }
+
+function candidates() { return fixtures.filter(f => prefs.leagues.includes(f.code) && !DONE.has(f.status)); }
+
+async function ensureStats() {
+  const todo = candidates().filter(f => !(f.id in statsMap));
+  if (!todo.length || statsLoading) return;
+  statsLoading = true; statsError = ''; renderAll();
+  try {
+    for (let i = 0; i < todo.length; i += 30) {
+      const chunk = todo.slice(i, i + 30);
+      const d = await api('/stats/batch', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: f.code, home: f.home, away: f.away })) })
+      });
+      chunk.forEach(f => { if (d.results && d.results[f.id]) statsMap[f.id] = d.results[f.id]; });
+    }
+  } catch (e) { statsError = e.message; }
+  statsLoading = false; renderAll();
+  if (!statsError && candidates().some(f => !(f.id in statsMap))) ensureStats();
+}
+
+// ---------- Calculs ----------
+function dist(mu, v) {
+  const K = Math.max(40, Math.ceil(mu * 4 + 20)), p = new Array(K + 1);
+  if (v <= mu * 1.02) { p[0] = Math.exp(-mu); for (let k = 1; k <= K; k++) p[k] = p[k - 1] * mu / k; }
+  else { const r = mu * mu / (v - mu), q = mu / (r + mu); p[0] = Math.pow(1 - q, r); for (let k = 1; k <= K; k++) p[k] = p[k - 1] * (k - 1 + r) / k * q; }
+  const t = p.reduce((a, b) => a + b, 0);
+  return p.map(x => x / t);
+}
+function pOver(d, line) { let s = 0; for (let k = Math.ceil(line); k < d.length; k++) s += d[k]; return Math.min(1, s); }
+
+function evaluate(f) {
+  const mk = MARKETS[prefs.market];
+  if (mk.unavailable) return { f, ok: false, reason: 'Aucune source gratuite ne fournit les touches.' };
+  const s = statsMap[f.id];
+  if (!s) return { f, ok: false, pending: true, reason: 'Statistiques en cours de chargement.' };
+  if (s.error) return { f, ok: false, reason: s.error };
+  if (!s.home || !s.home.matched) return { f, ok: false, reason: '« ' + f.home + ' » introuvable dans la source.' };
+  if (!s.away || !s.away.matched) return { f, ok: false, reason: '« ' + f.away + ' » introuvable dans la source.' };
+  const H = s.home.all, A = s.away.all;
+  if (!H || !A) return { f, ok: false, reason: 'Pas assez de matchs joués.' };
+  const n = Math.min(H.n, A.n);
+  if (n < 5) return { f, ok: false, reason: 'Seulement ' + n + ' match(s) joué(s) par une des équipes (minimum 5).' };
+  const eh = (H[mk.f] + A[mk.a]) / 2, ea = (A[mk.f] + H[mk.a]) / 2, mu = eh + ea;
+  const vs = [H[mk.v], A[mk.v]].filter(v => v != null), v = Math.max(mu, vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : mu);
+  const cross = !!s.cross;
+  return { f, ok: true, s, H, A, eh, ea, mu, n, cross, level: cross ? 'faible' : (n >= 10 ? 'bonne' : 'moyenne'), dist: dist(mu, v) };
+}
+function passes(e) { const line = lineOf(prefs.market); return prefs.trend === 'high' ? e.mu >= line : e.mu <= line; }
+
+function pick(e) {
+  const mk = MARKETS[prefs.market], thr = prefs.safe + (e.cross ? 0.05 : 0);
+  if (e.n < 6) return null;
+  const lines = []; for (let l = mk.range[0]; l <= mk.range[1] + 0.01; l += 1) lines.push(l);
+  if (prefs.trend === 'high') { for (let i = lines.length - 1; i >= 0; i--) { const p = pOver(e.dist, lines[i]); if (p >= thr) return { dir: 'Plus de', line: lines[i], p }; } }
+  else { for (let i = 0; i < lines.length; i++) { const p = 1 - pOver(e.dist, lines[i]); if (p >= thr) return { dir: 'Moins de', line: lines[i], p }; } }
+  return null;
+}
+
+function evaluated() {
+  const all = candidates().map(evaluate);
+  const kept = all.filter(e => e.ok && passes(e));
+  const line = lineOf(prefs.market);
+  kept.sort((a, b) => prefs.trend === 'high' ? (b.mu - line) - (a.mu - line) : (a.mu - line) - (b.mu - line));
+  return { all, kept, pending: all.some(e => e.pending), excluded: all.filter(e => !e.ok && !e.pending), below: all.filter(e => e.ok && !passes(e)) };
+}
+
+// ---------- Rendu Filtre ----------
+function renderFilter() {
+  const groups = groupByComp(fixtures);
+  let lb = '';
+  if (!groups.length) lb = '<div class="empty">Aucun match chargé. Ouvre « Matchs du jour » ou change la date.</div>';
+  else {
+    lb = '<div class="checks">' + groups.map(g => {
+      const ok = COVERED.has(g.code);
+      return '<label class="' + (ok ? '' : 'off') + '"><input type="checkbox" ' + (ok ? '' : 'disabled ') + (prefs.leagues.includes(g.code) ? 'checked ' : '') +
+        'onchange="toggleLeague(\'' + esc(g.code) + '\',this.checked)"> ' + esc(compLabel(g.code, g.name)) + '<span class="cnt">' + (ok ? g.items.length + ' match(s)' : 'stats indisponibles') + '</span></label>';
+    }).join('') + '</div><div class="row" style="margin-top:10px"><button class="btn" onclick="selectAll(true)">Tout cocher</button><button class="btn" onclick="selectAll(false)">Tout décocher</button></div>';
+  }
+  $('leagueBox').innerHTML = lb;
+
+  $('marketChips').innerHTML = Object.entries(MARKETS).map(([k, m]) => '<button class="chip ' + (k === prefs.market ? 'on' : '') + '" onclick="setMarket(\'' + k + '\')">' + m.label + (m.unavailable ? ' <small>(indisponible)</small>' : '') + '</button>').join('');
+  $('trendChips').innerHTML = [['high', 'Élevée (plus de)'], ['low', 'Faible (moins de)']].map(([k, t]) => '<button class="chip ' + (k === prefs.trend ? 'on' : '') + '" onclick="setTrend(\'' + k + '\')">' + t + '</button>').join('');
+  const mk = MARKETS[prefs.market], line = lineOf(prefs.market);
+  $('lineLabel').textContent = 'Ligne (total des deux équipes) — ' + mk.label;
+  $('lineVal').textContent = f1(line);
+  $('lineHelp').textContent = 'Un match est retenu si le total attendu de ' + mk.noun + ' est ' + (prefs.trend === 'high' ? 'au-dessus de ' : 'en dessous de ') + f1(line) + '.';
+
+  let h = '';
+  if (mk.unavailable) h = '<div class="warning">Touches : aucune source gratuite ne fournit cette statistique, donc aucun match ne peut être filtré sur ce marché. Choisis Tirs, Fautes, Corners ou Cartons jaunes.</div>';
+  else if (!prefs.leagues.length) h = '<div class="card empty">Coche au moins un championnat ci-dessus.</div>';
+  else if (dayState !== 'ok') h = '<div class="card empty">Les matchs du jour ne sont pas encore chargés.</div>';
+  else {
+    const ev = evaluated();
+    if (statsLoading || ev.pending) h = '<div class="card empty">Chargement des statistiques des équipes… (' + candidates().length + ' match(s))</div>';
+    else {
+      if (statsError) h += '<div class="warning">Erreur de chargement : ' + esc(statsError) + ' <button class="btn" onclick="ensureStats()">Réessayer</button></div>';
+      h += '<div class="card"><h2 class="title">Matchs retenus : ' + ev.kept.length + '</h2><div class="hint">' + candidates().length + ' match(s) à venir dans les championnats cochés · ' + ev.below.length + ' sans tendance · ' + ev.excluded.length + ' sans données fiables</div>' +
+        (ev.kept.length ? ev.kept.map(e => matchRow(e.f, '<b>' + f1(e.mu) + '</b>attendu')).join('') : '<div class="empty">Aucun match ne correspond. Essaie une autre ligne ou un autre marché.</div>') + '</div>';
+      if (ev.excluded.length) h += '<div class="card"><div class="hint"><b>Écartés faute de données :</b><br>' + ev.excluded.map(e => esc(e.f.home) + ' — ' + esc(e.f.away) + ' : ' + esc(e.reason)).join('<br>') + '</div></div>';
+    }
+  }
+  $('filterBody').innerHTML = h;
+}
+
+// ---------- Rendu Analyse ----------
+function header(e) { return '<h4>' + esc(e.f.home) + ' — ' + esc(e.f.away) + '</h4><div class="hint">' + esc(compLabel(e.f.code, e.f.comp)) + ' · ' + hhmm(e.f.utc) + '</div>'; }
+function contextHtml(title) {
+  const mk = MARKETS[prefs.market];
+  return '<div class="card"><h2 class="title">' + title + '</h2><div class="hint">Marché : <b>' + mk.label + '</b> · tendance ' + (prefs.trend === 'high' ? 'élevée' : 'faible') + ' · ligne ' + f1(lineOf(prefs.market)) + ' (modifiable dans Filtre)</div></div>';
+}
+function gate(title) {
+  const mk = MARKETS[prefs.market];
+  if (mk.unavailable) return contextHtml(title) + '<div class="warning">Touches : aucune source gratuite ne fournit cette statistique. Choisis un autre marché dans Filtre.</div>';
+  if (!prefs.leagues.length) return contextHtml(title) + '<div class="card empty">Va dans Filtre, coche au moins un championnat et choisis un marché.</div>';
+  if (dayState !== 'ok') return contextHtml(title) + '<div class="card empty">Les matchs du jour ne sont pas encore chargés.</div>';
+  const ev = evaluated();
+  if (statsLoading || ev.pending) return contextHtml(title) + '<div class="card empty">Chargement des statistiques des équipes…</div>';
+  return null;
+}
+function renderAnalysis() {
+  const g = gate('Analyse'); if (g) { $('analysisBody').innerHTML = g; return; }
+  const ev = evaluated(), mk = MARKETS[prefs.market], line = lineOf(prefs.market), high = prefs.trend === 'high';
+  let h = contextHtml('Analyse');
+  if (!ev.kept.length) h += '<div class="card empty">Aucun match retenu par le filtre. Change la ligne, la tendance ou le marché dans Filtre.</div>';
+  ev.kept.forEach(e => {
+    const lad = [-2, -1, 0, 1, 2].map(d => line + d).filter(l => l > 0).map(l => {
+      const p = high ? pOver(e.dist, l) : 1 - pOver(e.dist, l);
+      return '<div class="lad ' + (l === line ? 'sel' : '') + '"><span>' + (high ? 'Plus de ' : 'Moins de ') + f1(l) + '</span><div class="bar"><span style="width:' + pc(p) + '%"></span></div><b>' + pc(p) + ' %</b></div>';
+    }).join('');
+    h += '<div class="mc">' + header(e) +
+      '<div class="two"><div><b>' + esc(e.f.home) + '</b><div class="hint">pour ' + f1(e.H[mk.f]) + ' · contre ' + f1(e.H[mk.a]) + '<br>' + e.H.n + ' matchs</div></div>' +
+      '<div><b>' + esc(e.f.away) + '</b><div class="hint">pour ' + f1(e.A[mk.f]) + ' · contre ' + f1(e.A[mk.a]) + '<br>' + e.A.n + ' matchs</div></div></div>' +
+      '<div class="est"><span>' + f1(e.eh) + ' + ' + f1(e.ea) + '</span><span>Total attendu <b>' + f1(e.mu) + '</b></span></div>' + lad +
+      '<div class="hint" style="margin-top:8px">Fiabilité : <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national de chaque club (pas des matchs de Ligue des Champions)' : '') + '. « pour » = moyenne par match de l’équipe, « contre » = moyenne concédée.</div></div>';
+  });
+  $('analysisBody').innerHTML = h;
+}
+
+// ---------- Rendu Pronostics ----------
+function renderPronostics() {
+  const g = gate('Pronostics'); if (g) { $('pronosBody').innerHTML = g; return; }
+  const ev = evaluated(), mk = MARKETS[prefs.market];
+  const picks = ev.kept.map(e => ({ e, p: pick(e) })), good = picks.filter(x => x.p).sort((a, b) => b.p.p - a.p.p), none = picks.filter(x => !x.p);
+  let h = contextHtml('Pronostics safe') + '<div class="card"><label class="l" style="margin-top:0">Niveau de sécurité minimum</label><div class="chips">' +
+    [[0.75, '75 %'], [0.8, '80 %'], [0.85, '85 %']].map(([v, t]) => '<button class="chip ' + (prefs.safe === v ? 'on' : '') + '" onclick="setSafe(' + v + ')">' + t + '</button>').join('') +
+    '</div><p class="hint" style="margin:10px 0 0">Pour chaque match analysé, le prono est la ligne la plus ' + (prefs.trend === 'high' ? 'haute' : 'basse') + ' que le modèle estime atteinte avec au moins cette probabilité.</p></div>';
+  if (!ev.kept.length) h += '<div class="card empty">Aucun match analysé. Va dans Filtre.</div>';
+  good.forEach(x => {
+    const e = x.e, p = x.p;
+    h += '<div class="mc">' + header(e) + '<div class="pick">' + p.dir + ' ' + f1(p.line) + ' ' + mk.noun + '</div>' +
+      '<div class="pp"><div class="bar"><span style="width:' + pc(p.p) + '%"></span></div><b>' + pc(p.p) + ' %</b></div>' +
+      '<div class="hint">Total attendu ' + f1(e.mu) + ' · ' + e.n + ' matchs minimum par équipe · fiabilité <b>' + e.level + '</b>' +
+      (e.cross ? ' · moyennes du championnat national : seuil relevé de 5 points' : '') + '</div></div>';
+  });
+  if (ev.kept.length && !good.length) h += '<div class="card empty">Aucun prono safe à ce niveau. Baisse le niveau de sécurité ou change de marché.</div>';
+  if (none.length && good.length) h += '<div class="card"><div class="hint">' + none.length + ' match(s) analysé(s) sans prono safe : ' + none.map(x => esc(x.e.f.home) + ' — ' + esc(x.e.f.away)).join(' · ') + '</div></div>';
+  h += '<div class="warning">Ce sont des estimations statistiques à partir des moyennes de la saison, sans cotes, sans blessures ni compositions. Un prono « safe » n’est jamais sans risque : ne mise que ce que tu peux te permettre de perdre.</div>';
+  $('pronosBody').innerHTML = h;
+}
+
+// ---------- Navigation ----------
+function renderAll() { renderFixtures(); renderFilter(); renderAnalysis(); renderPronostics(); }
+function show(id) {
+  document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
+  $(id).classList.remove('hidden');
+  document.querySelectorAll('[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === id));
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => show(b.dataset.page)));
+loadDay();
 </script>
-
-<script>
-/* Interface principale MD ZE ZAYE : chargement multi-championnats et filtre par marché */
-(function(){
- const BASE='https://md-ze-zaye.onrender.com';
- const oldLoad=window.loadFixtures;
- const selectedCodes=()=>Array.from(document.querySelectorAll('#leagueChecks input:checked')).map(x=>x.value);
-let autoLoadTimer=null;
-function scheduleAutoLoad(){clearTimeout(autoLoadTimer);autoLoadTimer=setTimeout(()=>loadFixtures(),300);}
-document.addEventListener('change',function(e){
- if(e.target && (e.target.matches('#leagueChecks input[type="checkbox"]') || e.target.matches('#fixtureDate'))) scheduleAutoLoad();
-});
-
- const names={PL:'Premier League',PD:'La Liga',SA:'Serie A',BL1:'Bundesliga',FL1:'Ligue 1',CL:'Ligue des Champions UEFA',PPL:'Primeira Liga',DED:'Eredivisie'};
- function today(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Porto-Novo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
- function esc2(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
- window.loadFixtures=async function(){
-   const codes=selectedCodes(), date=document.getElementById('fixtureDate').value||today();
-   const status=document.getElementById('fixtureStatus'),list=document.getElementById('fixtureList');
-   const startBtn=document.getElementById('startFilterBtn');if(startBtn)startBtn.disabled=true;
-   if(!codes.length){status.textContent='Coche au moins un championnat.';return}
-   status.textContent='Chargement automatique des championnats sélectionnés…';list.innerHTML='';
-   const all=[];
-   for(const code of codes){
-     try{
-       const r=await fetch(`${BASE}/competitions/${encodeURIComponent(code)}/matches?dateFrom=${encodeURIComponent(date)}&dateTo=${encodeURIComponent(date)}`,{headers:{Accept:'application/json'}});
-       const d=await r.json();if(!r.ok)throw Error(d.error||d.message||'Erreur serveur');
-       const matches=Array.isArray(d)?d:(Array.isArray(d.matches)?d.matches:[]);
-       matches.forEach(x=>{
-         if(!x.homeTeam?.name||!x.awayTeam?.name)return;
-         const ft=x.score?.fullTime||{},utc=x.utcDate||'';
-         let kickoff=date;if(utc){kickoff=new Intl.DateTimeFormat('fr-FR',{timeZone:'Africa/Porto-Novo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(utc))}
-         all.push({id:'fixture-'+all.length,apiId:x.id,homeId:x.homeTeam?.id||null,awayId:x.awayTeam?.id||null,code,iso:date,league:x.competition?.name||names[code]||code,competitionLogo:x.competition?.emblem||'',home:x.homeTeam.name,away:x.awayTeam.name,homeLogo:x.homeTeam.crest||'',awayLogo:x.awayTeam.crest||'',date:kickoff,status:x.status||'SCHEDULED',hg:ft.home??null,ag:ft.away??null});
-       });
-     }catch(e){console.warn('Championnat '+code,e)}
-   }
-   loadedFixtures=all;
-   if(!all.length){status.textContent='Aucun match trouvé pour les championnats cochés à cette date, ou la source ne les rend pas disponibles.';return}
-   status.textContent=`${all.length} match(s) chargé(s) dans ${codes.length} championnat(s).`;
-   const startBtn=document.getElementById('startFilterBtn');if(startBtn)startBtn.disabled=false;
-   list.innerHTML=all.map((m,i)=>`<div class="match" onclick="toggleFixtureStats(${i})"><div class="hint">${esc2(m.league)}</div><div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px"><div style="text-align:center">${m.homeLogo?`<img src="${esc2(m.homeLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.home)}</strong></div><div style="text-align:center"><b style="color:var(--gold)">${m.hg!=null&&m.ag!=null?esc2(m.hg)+' - '+esc2(m.ag):'VS'}</b><div class="hint">${esc2(m.date)}</div><span class="badge">${esc2(m.status)}</span></div><div style="text-align:center">${m.awayLogo?`<img src="${esc2(m.awayLogo)}" style="width:30px;height:30px;object-fit:contain;display:block;margin:auto">`:''}<strong>${esc2(m.away)}</strong></div></div><div class="actions"><button class="btn" onclick="event.stopPropagation();toggleFixtureStats(${i})">Analyser</button><button class="btn" onclick="event.stopPropagation();saveFixture(${i})">Ajouter à l’historique</button></div><div id="fixture-detail-${i}"></div></div>`).join('');
-   window.__mdzzFiltered=[];
- };
- window.startFilterWithFixtures=function(){
-   const source=Array.isArray(loadedFixtures)?loadedFixtures:[];
-   if(!source.length){alert('Charge d’abord les matchs du jour.');return}
-   // Copie indépendante pour que le Filtre reçoive explicitement les matchs chargés.
-   window.__mdzzFilterInput=source.map(f=>({...f}));
-   const status=document.getElementById('filterStatus');
-   const out=document.getElementById('filterList');
-   if(status)status.textContent=window.__mdzzFilterInput.length+' match(s) reçus dans le Filtre. Choisis un marché puis appuie sur « Filtrer les matchs chargés ».';
-   if(out)out.innerHTML=window.__mdzzFilterInput.map(f=>`<div class="match"><strong>${esc2(f.home)} — ${esc2(f.away)}</strong><div class="hint">${esc2(f.league)} · ${esc2(f.date)}</div><span class="badge">En attente du filtre statistique</span></div>`).join('');
-   if(typeof window.show==='function')window.show('filter');
- };
- window.runMarketFilter=async function(){
-   const status=document.getElementById('filterStatus'),out=document.getElementById('filterList');
-   const filterInput=Array.isArray(window.__mdzzFilterInput)&&window.__mdzzFilterInput.length?window.__mdzzFilterInput:loadedFixtures;
-   if(!filterInput||!filterInput.length){status.textContent='Charge les matchs du jour puis appuie sur « Démarrer → Envoyer les matchs au Filtre ». ';return}
-   const market=document.getElementById('filterMarket').value,trend=document.getElementById('filterTrend').value;
-   const labels={shotsFor:'Tirs',foulsFor:'Fautes',cornersFor:'Corners',yellowFor:'Cartons jaunes',throwsFor:'Touches'};
-   status.textContent='Analyse des tendances disponibles…';out.innerHTML='';
-   const found=[];
-   for(const f of filterInput){
-     try{
-       const url=BASE+'/stats/match?league='+encodeURIComponent(f.code||'ANY')+'&home='+encodeURIComponent(f.home)+'&away='+encodeURIComponent(f.away);
-       const r=await fetch(url,{headers:{Accept:'application/json'}}),d=await r.json();
-       if(!r.ok||d.error||!d.home?.all||!d.away?.all)continue;
-       let key=market;
-       if(market==='throwsFor')continue; // source automatique non disponible de façon fiable
-       const h=Number(d.home.all[key]),a=Number(d.away.all[key]);
-       if(!Number.isFinite(h)||!Number.isFinite(a))continue;
-       const total=h+a, isHigh=total>=20;
-       if(trend==='high'&&!isHigh)continue;
-       if(trend==='low'&&isHigh)continue;
-       found.push({f,h,a,total});
-     }catch(e){}
-   }
-   window.__mdzzFiltered=found.map(x=>x.f);
-   status.textContent=found.length?`${found.length} match(s) retenu(s) pour le marché ${labels[market]||market}.`:'Aucun match retenu : données insuffisantes ou aucun match ne répond à la tendance choisie.';
-   out.innerHTML=found.map(({f,h,a,total})=>`<div class="match"><strong>${esc2(f.home)} — ${esc2(f.away)}</strong><div class="hint">${esc2(f.league)} · ${esc2(f.date)}</div><div class="statrow"><span>${labels[market]||market} · moyenne équipe domicile</span><b>${h.toFixed(1)}</b></div><div class="statrow"><span>Moyenne équipe extérieure</span><b>${a.toFixed(1)}</b></div><div class="statrow"><span>Total moyen comparé</span><b>${total.toFixed(1)}</b></div><div class="actions"><button class="btn primary" onclick="show('fixtures');const i=loadedFixtures.findIndex(x=>x.apiId===${Number(f.apiId)||0});if(i>=0)toggleFixtureStats(i)">Ouvrir l’analyse</button></div></div>`).join('');
-   document.getElementById('pronosticsList').innerHTML=found.length?found.map(x=>`<div class="match"><strong>${esc2(x.f.home)} — ${esc2(x.f.away)}</strong><div class="hint">${esc2(x.f.league)} · Marché : ${labels[market]||market}</div><div class="statrow"><span>Tendance observée</span><b>${x.total>=20?'Élevée':'Faible'}</b></div><p class="hint">Indicateur exploratoire basé sur les moyennes retournées par la source ; ce n’est pas une garantie ni une recommandation certaine.</p></div>`).join(''):'Aucun match filtré pour le moment.';
- };
- const oldShow=window.show;
- window.addEventListener('load',()=>setTimeout(()=>{if(!window.__mdzzAutoloaded){window.__mdzzAutoloaded=true;window.loadFixtures()}},300));
- window.show=function(id){oldShow(id);if(id==='fixtures'&&!window.__mdzzAutoloaded){window.__mdzzAutoloaded=true;setTimeout(()=>window.loadFixtures(),250)}};
- document.getElementById('market')?.addEventListener('change',function(){});
-})();
-</script>
-
-</body></html>
-
-window.addEventListener('load',function(){scheduleAutoLoad();});
+</body>
+</html>

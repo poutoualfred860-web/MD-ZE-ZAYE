@@ -40,7 +40,7 @@ function defaultDateRange() {
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
@@ -191,11 +191,11 @@ app.get("/teams/:id/matches", async (req, res) => {
 // Les touches (throw-ins) ne sont fournies par aucune source gratuite.
 // ===================================================================
 const LEAGUE_CSV = {
-  PL: "E0", PD: "SP1", SA: "I1", BL1: "D1", FL1: "F1", PPL: "P1", DED: "N1",
+  PL: "E0", ELC: "E1", PD: "SP1", SA: "I1", BL1: "D1", FL1: "F1", PPL: "P1", DED: "N1",
   T1: "T1", SC0: "SC0", B1: "B1", G1: "G1"
 };
 const LEAGUE_LABELS = {
-  PL: "Premier League", PD: "La Liga", SA: "Serie A", BL1: "Bundesliga", FL1: "Ligue 1",
+  PL: "Premier League", ELC: "Championship", PD: "La Liga", SA: "Serie A", BL1: "Bundesliga", FL1: "Ligue 1",
   PPL: "Primeira Liga", DED: "Eredivisie", T1: "Süper Lig", SC0: "Scottish Premiership",
   B1: "Pro League (Belgique)", G1: "Super League (Grèce)"
 };
@@ -263,7 +263,9 @@ function emptyTotals() {
     shotsFor: 0, shotsAgainst: 0,
     foulsFor: 0, foulsAgainst: 0,
     cornersFor: 0, cornersAgainst: 0,
-    yellowFor: 0, yellowAgainst: 0
+    yellowFor: 0, yellowAgainst: 0,
+    shotsTot: 0, shotsTot2: 0, foulsTot: 0, foulsTot2: 0,
+    cornersTot: 0, cornersTot2: 0, yellowTot: 0, yellowTot2: 0
   };
 }
 
@@ -293,6 +295,11 @@ function aggregate(rows) {
     ensure(name);
     [teams[name].all, teams[name][side]].forEach(t => {
       t.n++;
+      [["shots", "s"], ["fouls", "f"], ["corners", "c"], ["yellow", "y"]].forEach(([name, k]) => {
+        const total = mine[k] + theirs[k];
+        t[name + "Tot"] += total;
+        t[name + "Tot2"] += total * total;
+      });
       t.goalsFor += mine.g; t.goalsAgainst += theirs.g;
       t.shotsFor += mine.s; t.shotsAgainst += theirs.s;
       t.foulsFor += mine.f; t.foulsAgainst += theirs.f;
@@ -331,7 +338,17 @@ function aggregate(rows) {
 function averages(t) {
   if (!t || !t.n) return null;
   const r = v => Math.round((v / t.n) * 100) / 100;
+  // variance (échantillon) du total par match : sert à calculer des probabilités réalistes
+  const variance = (sum, sum2) => {
+    if (t.n < 3) return null;
+    const mean = sum / t.n;
+    return Math.round(Math.max(0, (sum2 / t.n - mean * mean) * t.n / (t.n - 1)) * 100) / 100;
+  };
   return {
+    shotsVar: variance(t.shotsTot, t.shotsTot2),
+    foulsVar: variance(t.foulsTot, t.foulsTot2),
+    cornersVar: variance(t.cornersTot, t.cornersTot2),
+    yellowVar: variance(t.yellowTot, t.yellowTot2),
     n: t.n,
     goalsFor: r(t.goalsFor), goalsAgainst: r(t.goalsAgainst),
     shotsFor: r(t.shotsFor), shotsAgainst: r(t.shotsAgainst),
@@ -491,6 +508,41 @@ function buildCross(home, away, loaded, leagueCode) {
   };
 }
 
+async function statsPayload(league, home, away, season) {
+  if (league === "CL" || league === "ANY") {
+    const loaded = await Promise.allSettled(CL_SEARCH.map(code => getLeagueStats(code)));
+    if (loaded.every(r => r.status !== "fulfilled")) {
+      throw new Error("Aucun championnat n'a pu être chargé depuis football-data.co.uk.");
+    }
+    return buildCross(home, away, loaded, league);
+  }
+
+  if (!LEAGUE_CSV[league]) {
+    const err = new Error("Ce championnat n'est pas couvert par la source gratuite.");
+    err.status = 404;
+    err.supported = Object.keys(LEAGUE_CSV).concat(["CL", "ANY"]);
+    throw err;
+  }
+
+  const data = await getLeagueStats(league, season);
+  const names = Object.keys(data.teams);
+  const build = requested => {
+    const matched = matchTeam(requested, names);
+    if (!matched) return { requested, matched: null, available: names.slice(0, 30) };
+    return teamPayload(requested, data, matched, league);
+  };
+
+  return {
+    source: "football-data.co.uk",
+    season: "20" + data.season.slice(0, 2) + "/" + data.season.slice(2),
+    league,
+    leagueAverages: data.league,
+    home: build(home),
+    away: build(away),
+    unavailable: ["Touches"]
+  };
+}
+
 app.get("/stats/match", async (req, res) => {
   try {
     const league = String(req.query.league || "").toUpperCase();
@@ -501,46 +553,38 @@ app.get("/stats/match", async (req, res) => {
       return res.status(400).json({ error: "Les paramètres home et away sont obligatoires." });
     }
 
-    if (league === "CL" || league === "ANY") {
-      const loaded = await Promise.allSettled(CL_SEARCH.map(code => getLeagueStats(code)));
-      if (loaded.every(r => r.status !== "fulfilled")) {
-        throw new Error("Aucun championnat n'a pu être chargé depuis football-data.co.uk.");
-      }
-      return res.json(buildCross(home, away, loaded, league));
-    }
-
-    if (!LEAGUE_CSV[league]) {
-      return res.status(404).json({
-        error: "Ce championnat n'est pas couvert par la source gratuite.",
-        supported: Object.keys(LEAGUE_CSV).concat(["CL", "ANY"])
-      });
-    }
-
     const season = /^\d{4}$/.test(String(req.query.season || "")) ? String(req.query.season) : null;
-    const data = await getLeagueStats(league, season);
-    const names = Object.keys(data.teams);
-
-    const build = requested => {
-      const matched = matchTeam(requested, names);
-      if (!matched) return { requested, matched: null, available: names.slice(0, 30) };
-      return teamPayload(requested, data, matched, league);
-    };
-
-    res.json({
-      source: "football-data.co.uk",
-      season: "20" + data.season.slice(0, 2) + "/" + data.season.slice(2),
-      league,
-      leagueAverages: data.league,
-      home: build(home),
-      away: build(away),
-      unavailable: ["Touches"]
-    });
+    res.json(await statsPayload(league, home, away, season));
   } catch (error) {
+    if (error.status === 404) {
+      return res.status(404).json({ error: error.message, supported: error.supported });
+    }
     res.status(502).json({
       error: "Impossible de lire les statistiques détaillées.",
       details: error.message
     });
   }
+});
+
+// Plusieurs matchs en une seule requête : { items: [{ id, league, home, away }] }
+app.post("/stats/batch", express.json({ limit: "300kb" }), async (req, res) => {
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 80) : [];
+  const results = {};
+  for (const item of items) {
+    const id = String((item && item.id) || "");
+    if (!id) continue;
+    try {
+      results[id] = await statsPayload(
+        String(item.league || "").toUpperCase(),
+        String(item.home || ""),
+        String(item.away || ""),
+        null
+      );
+    } catch (error) {
+      results[id] = { error: error.message };
+    }
+  }
+  res.json({ results });
 });
 
 app.listen(PORT, () => {
