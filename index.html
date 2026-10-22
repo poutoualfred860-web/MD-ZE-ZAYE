@@ -84,25 +84,7 @@ label.l{display:block;color:var(--muted);font-size:12px;font-weight:600;margin:1
 .bottom button i{display:block;font-style:normal;font-size:20px}
 .bottom button.active{color:var(--navy)}
 .badge{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:3px 9px;font-size:11px;color:var(--muted)}
-
-/* Styles isolés de la rubrique Prédiction */
-#prediction .poster-card{background:#fff;border:1px solid #e3d5a3;border-radius:16px;padding:14px;margin:12px 0;color:#171717}
-#prediction .poster-head{display:flex;align-items:center;gap:9px;border-bottom:2px solid #d4a017;padding-bottom:10px;margin-bottom:10px}
-#prediction .poster-crown{font-size:27px;color:#d4a017}
-#prediction .poster-title{font-size:17px;font-weight:900;letter-spacing:.5px}
-#prediction .poster-sub{font-size:10px;color:#666;letter-spacing:1px}
-#prediction .poster-match{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;padding:12px 0;border-bottom:1px solid #eee}
-#prediction .poster-team{text-align:center;font-size:12px;font-weight:800;overflow-wrap:anywhere}
-#prediction .poster-team img{display:block;width:34px;height:34px;object-fit:contain;margin:0 auto 5px}
-#prediction .poster-vs{font-weight:900;color:#b58a08;font-size:12px}
-#prediction .poster-time{text-align:center;color:#777;font-size:10px;margin-top:3px}
-#prediction .poster-picks{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;margin-top:7px}
-#prediction .poster-pick{border:1px solid #eadba9;border-radius:8px;padding:5px 7px;font-size:10px;font-weight:800;color:#3a300e;background:#fffdf5}
-#prediction .poster-note{font-size:10px;color:#777;line-height:1.4;margin-top:10px}
-#prediction .poster-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
-#prediction .poster-actions button{flex:1;min-width:80px}
-#prediction .poster-image{display:block;width:100%;height:auto;border:1px solid #ddd;border-radius:10px;background:#fff}
-\n</style>
+</style>
 </head>
 <body>
 <header><div class="crown">♛</div><div><div class="brand">MD ZE ZAYE</div><div class="sub">ANALYSE • STATISTIQUES • PRONOSTICS</div></div></header>
@@ -130,19 +112,7 @@ label.l{display:block;color:var(--muted);font-size:12px;font-weight:600;margin:1
 <section id="analysis" class="page hidden"><div id="analysisBody"></div></section>
 <section id="pronostics" class="page hidden"><div id="pronosBody"></div></section>
 <section id="prediction" class="page hidden">
-  <div class="card">
-    <h2 class="title">Prédictions du championnat</h2>
-    <p class="hint">Sélectionne une compétition pour préparer une affiche blanche MD ZE ZAYE. Les probabilités sont des estimations basées sur les moyennes disponibles, pas des garanties.</p>
-    <label class="l" for="posterLeague">Championnat</label>
-    <select id="posterLeague" class="btn" style="width:100%;text-align:left" onchange="renderPrediction()"><option value="">Chargement des championnats…</option></select>
-    <div class="row" style="margin-top:12px">
-      <button class="btn primary" onclick="renderPrediction()">Actualiser les prédictions</button>
-      <button class="btn" onclick="downloadPredictionPosters()">Créer les affiches</button>
-    </div>
-    <p class="hint" id="posterStatus" aria-live="polite" style="margin-top:10px">Les matchs et statistiques sont chargés depuis MD ZE ZAYE.</p>
-  </div>
-  <div id="predictionBody"></div>
-  <div id="posterPreviews"></div>
+  <div class="card"><h2 class="title">Prédiction</h2><p>Rubrique réservée. Son rôle sera défini plus tard.</p><div class="warning">Aucune prédiction n’est lancée dans cette rubrique pour le moment.</div></div>
 </section>
 
 </div>
@@ -531,127 +501,12 @@ function renderPronostics() {
   $('pronosBody').innerHTML = h;
 }
 
-
-// ---------- Prédictions / affiches : isolé des autres rubriques ----------
-const posterCache = [];
-function poissonDist(mu, max=10) {
-  mu = Math.max(0.05, Math.min(8, Number(mu) || 0.05));
-  const a = [Math.exp(-mu)];
-  for (let i=1;i<=max;i++) a[i] = a[i-1]*mu/i;
-  const total = a.reduce((x,y)=>x+y,0);
-  return a.map(x=>x/total);
-}
-function predictionModel(f) {
-  const s = statsMap[f.id];
-  if (!covered(f.code)) return {ok:false,reason:'Statistiques non couvertes pour cette compétition.'};
-  if (!s) return {ok:false,reason:'Statistiques des équipes en cours de chargement ou indisponibles.'};
-  if (s.error) return {ok:false,reason:s.error};
-  if (!s.home || !s.home.matched || !s.away || !s.away.matched || !s.home.all || !s.away.all) return {ok:false,reason:'Une ou deux équipes ne sont pas trouvées dans la source.'};
-  const H=s.home.all,A=s.away.all;
-  if (H.n<5 || A.n<5 || H.goalsFor==null || H.goalsAgainst==null || A.goalsFor==null || A.goalsAgainst==null) return {ok:false,reason:'Données de buts insuffisantes (minimum 5 matchs et moyennes disponibles).'};
-  const hg=Math.max(.15,(H.goalsFor+A.goalsAgainst)/2), ag=Math.max(.15,(A.goalsFor+H.goalsAgainst)/2);
-  const hd=poissonDist(hg), ad=poissonDist(ag);
-  let home=0,draw=0,away=0,over25=0,btts=0;
-  for(let i=0;i<hd.length;i++) for(let j=0;j<ad.length;j++){
-    const p=hd[i]*ad[j]; if(i>j)home+=p;else if(i===j)draw+=p;else away+=p;
-    if(i+j>=3)over25+=p; if(i>0&&j>0)btts+=p;
-  }
-  const fmt=p=>Math.round(p*100)+'%';
-  return {ok:true,hg,ag,home,draw,away,over25,btts,oneX:home+draw,xTwo:away+draw,twelve:home+away,score:bestScores(hd,ad),n:Math.min(H.n,A.n),otherMissing:['corners','cards','shots','fouls','throws','offsides']};
-}
-function bestScores(hd,ad) {
-  const a=[]; for(let i=0;i<Math.min(6,hd.length);i++)for(let j=0;j<Math.min(6,ad.length);j++)a.push({score:i+'-'+j,p:hd[i]*ad[j]});
-  return a.sort((x,y)=>y.p-x.p).slice(0,3);
-}
-function predPercent(p){return Math.round(p*100)+'%';}
-function renderPrediction() {
-  const groups=groupByComp(dayFixtures());
-  const sel=$('posterLeague');
-  const old=sel.value;
-  sel.innerHTML='<option value="">Choisir un championnat</option>'+groups.map(g=>'<option value="'+esc(g.code||g.name)+'">'+esc(g.flag)+' '+esc(g.name)+'</option>').join('');
-  if(old && groups.some(g=>(g.code||g.name)===old)) sel.value=old;
-  else if(groups.length===1) sel.value=groups[0].code||groups[0].name;
-  const key=sel.value, group=groups.find(g=>(g.code||g.name)===key);
-  posterCache.length=0;
-  if(curDay().state!=='ok') {
-    $('predictionBody').innerHTML='<div class="empty">Chargement des matchs… Attends quelques secondes puis actualise.</div>';
-    $('posterStatus').textContent='Chargement du calendrier.';
-    return;
-  }
-  if(!group) {
-    $('predictionBody').innerHTML='<div class="empty">Aucun championnat sélectionné ou aucun match pour ce jour. Choisis un jour dans « Matchs du jour ».</div>';
-    $('posterStatus').textContent='Choisis une compétition dans la liste.';
-    return;
-  }
-  const matches=group.items;
-  let html='<div class="card"><h2 class="title">'+esc(group.flag)+' '+esc(group.name)+' · '+matches.length+' match(s)</h2><div class="hint">Affiche blanche, logos réels quand fournis par la source, heure locale du Bénin.</div></div>';
-  matches.forEach(f=>{
-    const e=predictionModel(f);
-    const pick=e.ok
-      ? '<div class="poster-picks"><span class="poster-pick">1 '+predPercent(e.home)+'</span><span class="poster-pick">N '+predPercent(e.draw)+'</span><span class="poster-pick">2 '+predPercent(e.away)+'</span><span class="poster-pick">1X '+predPercent(e.oneX)+'</span><span class="poster-pick">X2 '+predPercent(e.xTwo)+'</span><span class="poster-pick">+2,5 buts '+predPercent(e.over25)+'</span><span class="poster-pick">BTTS '+predPercent(e.btts)+'</span><span class="poster-pick">Score '+e.score.map(x=>x.score+' '+predPercent(x.p)).join(' · ')+'</span></div><div class="poster-note">Buts attendus : '+f1(e.hg)+' – '+f1(e.ag)+' · calcul basé sur '+e.n+' matchs minimum par équipe.</div>'
-      : '<div class="warning">'+esc(e.reason)+' Les probabilités ne sont pas affichées plutôt que d’inventer des chiffres.</div>';
-    const card='<div class="poster-match"><div class="poster-team">'+(f.homeLogo?'<img src="'+esc(f.homeLogo)+'" alt="">':'')+esc(f.home)+'</div><div><div class="poster-vs">VS</div><div class="poster-time">'+hhmm(f.utc)+'</div></div><div class="poster-team">'+(f.awayLogo?'<img src="'+esc(f.awayLogo)+'" alt="">':'')+esc(f.away)+'</div></div>';
-    html+='<div class="poster-card">'+card+pick+'</div>';
-    posterCache.push({f,e,comp:group.name,flag:group.flag});
-  });
-  $('predictionBody').innerHTML=html;
-  $('posterStatus').textContent=matches.length+' match(s) affichés. Les marchés de corners, cartons, tirs, fautes, touches et hors-jeu ne sont pas prédits sans données dédiées vérifiables.';
-}
-function buildPosterCanvas(items, index) {
-  const width=900, rowH=items.length>5?180:210, height=150+items.length*rowH+100;
-  const c=document.createElement('canvas'); c.width=width;c.height=height;
-  const x=c.getContext('2d'); x.fillStyle='#fff';x.fillRect(0,0,width,height);
-  x.fillStyle='#d4a017';x.fillRect(0,0,width,12);
-  x.fillStyle='#111';x.font='bold 38px Arial';x.fillText('♛ MD ZE ZAYE',42,65);
-  x.fillStyle='#777';x.font='16px Arial';x.fillText('ANALYSE • STATISTIQUES • PRONOSTICS',44,94);
-  x.fillStyle='#b58a08';x.font='bold 24px Arial';x.fillText(items[0]?.comp||'PRÉDICTIONS',42,133);
-  let y=165;
-  items.forEach(({f,e},i)=>{
-    x.strokeStyle='#eadba9';x.beginPath();x.moveTo(40,y+rowH-8);x.lineTo(width-40,y+rowH-8);x.stroke();
-    x.fillStyle='#111';x.font='bold 22px Arial';x.textAlign='left';x.fillText(f.home.slice(0,25),45,y+30);
-    x.textAlign='right';x.fillText(f.away.slice(0,25),width-45,y+30);
-    x.textAlign='center';x.fillStyle='#b58a08';x.font='bold 18px Arial';x.fillText('VS',width/2,y+30);
-    x.fillStyle='#777';x.font='15px Arial';x.fillText(hhmm(f.utc)+' · '+new Date(f.utc).toLocaleDateString('fr-FR',{timeZone:'Africa/Porto-Novo'}),width/2,y+55);
-    if(e.ok){
-      x.fillStyle='#292929';x.font='bold 17px Arial';
-      x.fillText('1 '+predPercent(e.home)+'   N '+predPercent(e.draw)+'   2 '+predPercent(e.away),width/2,y+90);
-      x.fillText('1X '+predPercent(e.oneX)+'   X2 '+predPercent(e.xTwo)+'   +2,5 buts '+predPercent(e.over25)+'   BTTS '+predPercent(e.btts),width/2,y+120);
-      x.fillStyle='#666';x.font='14px Arial';x.fillText('Buts attendus '+f1(e.hg)+' – '+f1(e.ag)+' · scores les plus probables : '+e.score.map(z=>z.score+' '+predPercent(z.p)).join(', '),width/2,y+148);
-    }else{
-      x.fillStyle='#777';x.font='15px Arial';x.fillText('Données insuffisantes : probabilités non affichées',width/2,y+95);
-    }
-    y+=rowH;
-  });
-  x.textAlign='left';x.fillStyle='#777';x.font='13px Arial';x.fillText('Estimations statistiques, jamais garanties. Les marchés sans données vérifiées ne sont pas estimés.',42,height-38);
-  return c;
-}
-function downloadPredictionPosters() {
-  if(!posterCache.length){alert('Aucun match à exporter. Choisis un championnat et attends le chargement.');return;}
-  const chunks=[];for(let i=0;i<posterCache.length;i+=5)chunks.push(posterCache.slice(i,i+5));
-  const host=$('posterPreviews');host.innerHTML='';
-  chunks.forEach((items,i)=>{
-    const c=buildPosterCanvas(items,i), url=c.toDataURL('image/png'), card=document.createElement('div');
-    card.className='card';card.innerHTML='<h3 class="title">Affiche '+(i+1)+'/'+chunks.length+'</h3><img class="poster-image" alt="Affiche de prédictions"><div class="poster-actions"><button class="btn" data-act="png">PNG</button><button class="btn" data-act="jpg">JPG</button><button class="btn primary" data-act="share">Partager</button></div>';
-    const img=card.querySelector('img');img.src=url;
-    const save=(fmt)=>{const a=document.createElement('a');a.href=c.toDataURL(fmt==='jpg'?'image/jpeg':'image/png',.92);a.download='MD-ZE-ZAYE-affiche-'+(i+1)+'.'+(fmt==='jpg'?'jpg':'png');a.click();};
-    card.querySelector('[data-act="png"]').onclick=()=>save('png');
-    card.querySelector('[data-act="jpg"]').onclick=()=>save('jpg');
-    card.querySelector('[data-act="share"]').onclick=async()=>{
-      try{const blob=await new Promise(r=>c.toBlob(r,'image/png'));const file=new File([blob],'MD-ZE-ZAYE-affiche-'+(i+1)+'.png',{type:'image/png'});if(navigator.canShare&&navigator.canShare({files:[file]}))await navigator.share({files:[file],title:'MD ZE ZAYE — Prédictions'});else save('png');}
-      catch(e){save('png');}
-    };
-    host.appendChild(card);
-  });
-  host.scrollIntoView({behavior:'smooth',block:'start'});
-}
-
 // ---------- Navigation ----------
 function renderAll() { renderFixtures(); renderFilter(); renderAnalysis(); renderPronostics(); }
 function show(id) {
   document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
   $(id).classList.remove('hidden');
   document.querySelectorAll('[data-page]').forEach(b => b.classList.toggle('active', b.dataset.page === id));
-  if (id === 'prediction') { fetchStats(candidates()); renderPrediction(); }
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => show(b.dataset.page)));
