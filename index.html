@@ -30,6 +30,8 @@ header{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}
 .mcard .tm small{display:block;font-size:10px;font-weight:700;margin-top:1px}
 .tm.livec{color:var(--red)}.tm small.l{color:var(--red)}.tm small.d{color:var(--muted)}
 .sp{margin:-4px 4px 8px;padding:12px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.sh{font-weight:800;font-size:14px;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.sh small{font-weight:500;color:var(--muted);font-size:11px}
 .sr{display:grid;grid-template-columns:54px 1fr 54px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #e8eefb;font-size:14px}
 .sr:last-child{border:0}.sr b{font-size:16px}.sr b.r{text-align:right}.sr .lb{text-align:center;color:var(--muted);font-size:12px}
 .sr .bar{margin-top:4px}
@@ -55,6 +57,12 @@ label.l{display:block;color:var(--muted);font-size:12px;font-weight:600;margin:1
 .rowm{display:grid;grid-template-columns:50px 1fr auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
 .rowm:last-child{border:0}.rowm .t{font-weight:800;color:var(--blue);font-size:14px}
 .rowm .n{display:flex;flex-direction:column;gap:3px;font-size:14px;font-weight:600}.rowm .s{text-align:right;font-size:12px;color:var(--muted)}.rowm .s b{display:block;font-size:16px;color:var(--ink)}
+.hd{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;text-align:center;margin-bottom:4px}
+.hd .tm1{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:14px;font-weight:700;line-height:1.2}
+.hd img,.hd .nologo{width:44px;height:44px;object-fit:contain}
+.hd .vs{color:var(--muted);font-weight:800;font-size:12px}
+.lg{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px}
+.rowm .n span{display:flex;align-items:center}
 .mc{padding:14px;border:1px solid var(--line);border-radius:18px;margin:12px 0;background:var(--card)}
 .mc h4{margin:0 0 3px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
@@ -134,7 +142,7 @@ const COMP = {
   CL: ['🇪🇺', 'Ligue des champions'], EL: ['🇪🇺', 'Ligue Europa'], BSA: ['🇧🇷', 'Brésil - Série A'], WC: ['🌍', 'Coupe du monde'], EC: ['🇪🇺', 'Championnat d’Europe']
 };
 // Code de la compétition -> code utilisé par le serveur pour les statistiques (null = indisponible)
-const STATS_CODE = { PL: 'PL', ELC: 'ELC', PD: 'PD', SA: 'SA', BL1: 'BL1', FL1: 'FL1', PPL: 'PPL', DED: 'DED', T1: 'T1', B1: 'B1', SC0: 'SC0', G1: 'G1', CL: 'CL', EL: 'ANY', ECL: 'ANY' };
+const STATS_CODE = { PL: 'PL', ELC: 'ELC', PD: 'PD', SA: 'SA', BL1: 'BL1', FL1: 'FL1', PPL: 'PPL', DED: 'DED', T1: 'T1', B1: 'B1', SC0: 'SC0', G1: 'G1', CL: 'CL', EL: 'ANY', ECL: 'ANY', UNL: 'ESPN' };
 const covered = code => !!STATS_CODE[code];
 const DONE = new Set(['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED', 'AWARDED']);
 const LIVE = new Set(['IN_PLAY', 'PAUSED']);
@@ -188,7 +196,8 @@ async function api(path, opts, tries) {
 // ---------- Chargement des matchs d'un jour ----------
 const fromEspn = m => ({
   id: m.id, code: m.code, comp: m.competition, flag: m.flag, utc: m.utcDate, status: m.status, clock: m.clock || '',
-  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || '', awayLogo: m.away.crest || '', hg: m.homeScore, ag: m.awayScore
+  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || '', awayLogo: m.away.crest || '', hg: m.homeScore, ag: m.awayScore,
+  homeId: m.home.id || '', awayId: m.away.id || '', eventId: String(m.id).replace(/^espn-/, '')
 });
 const fromFd = x => {
   const code = (x.competition && x.competition.code) || '', c = COMP[code] || ['⚽', (x.competition && x.competition.name) || code || 'Compétition'];
@@ -239,6 +248,7 @@ function center(f) {
   return '<div class="tm">' + hhmm(f.utc) + '</div>';
 }
 const crest = u => u ? '<img src="' + esc(u) + '" alt="" loading="lazy">' : '<span></span>';
+const lg = u => u ? '<img class="lg" src="' + esc(u) + '" alt="" loading="lazy">' : '';
 
 function statsPanel(f) {
   if (!covered(f.code)) return '<div class="hint">Statistiques indisponibles pour cette compétition (aucune source gratuite).</div>';
@@ -253,13 +263,47 @@ function statsPanel(f) {
       const h = H[r[1]], a = A[r[1]], t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50;
       return '<div class="sr"><b>' + (r[2] ? f1(h) : h) + '</b><div class="lb">' + r[0] + (r[2] ? '<div class="bar"><span style="width:' + sh + '%"></span></div>' : '') + '</div><b class="r">' + (r[2] ? f1(a) : a) + '</b></div>';
     }).join('');
-  return '<div class="hint" style="margin-bottom:6px">Moyennes par match · ' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)' + (s.cross ? ' · moyennes du championnat national de chaque club' : '') + '</div>' + rows +
+  return '<div class="hint" style="margin-bottom:6px">Moyennes par match · ' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)' + (s.cross ? ' · moyennes du championnat national de chaque club' : '') + ([s.home, s.away].some(x => x && x.src === 'espn') ? ' · pour les clubs marqués ESPN : moyennes sur les matchs de la compétition (' + H.n + ' / ' + A.n + ' matchs)' : '') + '</div>' + rows +
     '<div class="hint" style="margin-top:6px">Touches et hors-jeu : aucune source gratuite.</div>';
 }
 
+const mstats = {};
+const MROWS = [['Possession (%)', 'possession'], ['Tirs', 'shots'], ['Tirs cadrés', 'shotsOnTarget'], ['Corners', 'corners'], ['Fautes', 'fouls'],
+  ['Cartons jaunes', 'yellow'], ['Cartons rouges', 'red'], ['Hors-jeu', 'offsides'], ['Arrêts', 'saves'], ['Touches', 'throwIns']];
+async function loadMatchStats(f, force) {
+  if (!f.eventId) return;
+  const cur = mstats[f.id];
+  if (cur && cur.loading) return;
+  if (cur && cur.ok && !force && !LIVE.has(f.status)) return;
+  mstats[f.id] = Object.assign({}, cur, { loading: true }); renderFixtures();
+  try { mstats[f.id] = { ok: true, data: await api('/match-stats?code=' + encodeURIComponent(f.code) + '&event=' + encodeURIComponent(f.eventId), null, 1) }; }
+  catch (e) { mstats[f.id] = { error: e.message }; }
+  renderFixtures();
+}
+function matchStatsHtml(f) {
+  const live = LIVE.has(f.status), m = mstats[f.id];
+  const head = '<div class="sh">Statistiques du match<small>' + (live ? 'en direct · actualisées toutes les 45 s' : 'match terminé') + '</small></div>';
+  if (!f.eventId) return head + '<div class="hint">Statistiques du match indisponibles avec cette source de calendrier.</div>';
+  if (!m || (m.loading && !m.ok)) return head + '<div class="hint">Chargement des statistiques du match…</div>';
+  if (m.error) return head + '<div class="hint">' + esc(m.error) + '</div><div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Réessayer</button></div>';
+  const d = m.data, shown = [], missing = [];
+  MROWS.forEach(r => {
+    const h = d.home[r[1]], a = d.away[r[1]];
+    if (h == null || a == null) { missing.push(r[0]); return; }
+    const t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50, fmt = v => Number.isInteger(v) ? v : f1(v);
+    shown.push('<div class="sr"><b>' + fmt(h) + '</b><div class="lb">' + r[0] + '<div class="bar"><span style="width:' + sh + '%"></span></div></div><b class="r">' + fmt(a) + '</b></div>');
+  });
+  if (!shown.length) return head + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : '') + '.</div>';
+  return head + '<div class="hint" style="margin-bottom:4px">' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)</div>' + shown.join('') +
+    (missing.length ? '<div class="hint" style="margin-top:6px">Non fournies par la source : ' + missing.map(esc).join(', ') + '.</div>' : '') +
+    (live ? '<div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Actualiser maintenant</button></div>' : '');
+}
+setInterval(() => curDay().fixtures.filter(f => LIVE.has(f.status) && openStats.has(f.id)).forEach(f => loadMatchStats(f, true)), 45000);
+
 function toggleGroup(code) { closedGroups.has(code) ? closedGroups.delete(code) : closedGroups.add(code); renderFixtures(); }
 function toggleStats(id) {
-  if (openStats.has(id)) openStats.delete(id); else { openStats.add(id); const f = curDay().fixtures.find(x => x.id === id); if (f) fetchStats([f]); }
+  if (openStats.has(id)) openStats.delete(id);
+  else { openStats.add(id); const f = curDay().fixtures.find(x => x.id === id); if (f) { fetchStats([f]); if (LIVE.has(f.status) || f.status === 'FINISHED') loadMatchStats(f, false); } }
   renderFixtures();
 }
 
@@ -278,7 +322,7 @@ function renderFixtures() {
       'onchange="toggleLeague(\'' + esc(g.code) + '\',this.checked)" aria-label="Sélectionner ' + esc(g.name) + '"><span class="fl">' + esc(g.flag) + '</span><span class="gt">' + esc(g.name) +
       '</span><button class="chev ' + (closed ? 'closed' : '') + '" onclick="toggleGroup(\'' + esc(g.code || g.name) + '\')" aria-label="Replier">⌃</button></div>' +
       (closed ? '' : g.items.map(f => '<div class="mcard" onclick="toggleStats(\'' + esc(f.id) + '\')"><span class="tn r">' + esc(f.home) + '</span>' + crest(f.homeLogo) + center(f) + crest(f.awayLogo) + '<span class="tn">' + esc(f.away) + '</span></div>' +
-        (openStats.has(f.id) ? '<div class="sp">' + statsPanel(f) + '</div>' : '')).join(''));
+        (openStats.has(f.id) ? '<div class="sp">' + (LIVE.has(f.status) || f.status === 'FINISHED' ? matchStatsHtml(f) + '<div style="height:12px"></div>' : '') + '<div class="sh">Moyennes des équipes</div>' + statsPanel(f) + '</div>' : '')).join(''));
   }).join('');
   $('fixturesBody').innerHTML = h;
 }
@@ -302,7 +346,7 @@ async function fetchStats(list) {
       const chunk = todo.slice(i, i + 30);
       const d = await api('/stats/batch', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: STATS_CODE[f.code], home: f.home, away: f.away })) })
+        body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: STATS_CODE[f.code], code: f.code, home: f.home, away: f.away, homeId: f.homeId, awayId: f.awayId })) })
       });
       chunk.forEach(f => { if (d.results && d.results[f.id]) statsMap[f.id] = d.results[f.id]; });
     }
@@ -359,7 +403,7 @@ function evaluated() {
 // ---------- Rendu Filtre ----------
 function rowMatch(f, right) {
   const score = f.hg != null && f.ag != null && (DONE.has(f.status) || LIVE.has(f.status)) ? '<b>' + esc(f.hg) + ' - ' + esc(f.ag) + '</b>' : '';
-  return '<div class="rowm"><div class="t">' + hhmm(f.utc) + '</div><div class="n"><span>' + esc(f.home) + '</span><span>' + esc(f.away) + '</span></div><div class="s">' + (right || score) + '</div></div>';
+  return '<div class="rowm"><div class="t">' + hhmm(f.utc) + '</div><div class="n"><span>' + lg(f.homeLogo) + esc(f.home) + '</span><span>' + lg(f.awayLogo) + esc(f.away) + '</span></div><div class="s">' + (right || score) + '</div></div>';
 }
 function dayLabel() { return tab === 'live' ? 'en direct (aujourd’hui)' : tabLabel(tab).toLowerCase(); }
 
@@ -399,7 +443,10 @@ function renderFilter() {
 }
 
 // ---------- Rendu Analyse ----------
-function header(e) { return '<h4>' + esc(e.f.home) + ' — ' + esc(e.f.away) + '</h4><div class="hint">' + esc(e.f.flag) + ' ' + esc(e.f.comp) + ' · ' + hhmm(e.f.utc) + '</div>'; }
+function header(e) {
+  const t = (name, logo) => '<div class="tm1">' + (logo ? '<img src="' + esc(logo) + '" alt="" loading="lazy">' : '<span class="nologo"></span>') + '<span>' + esc(name) + '</span></div>';
+  return '<div class="hd">' + t(e.f.home, e.f.homeLogo) + '<span class="vs">VS</span>' + t(e.f.away, e.f.awayLogo) + '</div><div class="hint" style="text-align:center;margin-bottom:6px">' + esc(e.f.flag) + ' ' + esc(e.f.comp) + ' · ' + hhmm(e.f.utc) + '</div>';
+}
 function contextHtml(title) {
   const mk = MARKETS[prefs.market];
   return '<div class="card"><h2 class="title">' + title + '</h2><div class="hint">Jour : <b>' + esc(tabLabel(tab)) + '</b> · marché : <b>' + mk.label + '</b> · tendance ' + (prefs.trend === 'high' ? 'élevée' : 'faible') + ' · ligne ' + f1(lineOf(prefs.market)) + ' (modifiable dans Filtre)</div></div>';
@@ -425,10 +472,10 @@ function renderAnalysis() {
       return '<div class="lad ' + (l === line ? 'sel' : '') + '"><span>' + (high ? 'Plus de ' : 'Moins de ') + f1(l) + '</span><div class="bar"><span style="width:' + pc(p) + '%"></span></div><b>' + pc(p) + ' %</b></div>';
     }).join('');
     h += '<div class="mc">' + header(e) +
-      '<div class="two"><div><b>' + esc(e.f.home) + '</b><div class="hint">pour ' + f1(e.H[mk.f]) + ' · contre ' + f1(e.H[mk.a]) + '<br>' + e.H.n + ' matchs</div></div>' +
-      '<div><b>' + esc(e.f.away) + '</b><div class="hint">pour ' + f1(e.A[mk.f]) + ' · contre ' + f1(e.A[mk.a]) + '<br>' + e.A.n + ' matchs</div></div></div>' +
+      '<div class="two"><div><b>' + lg(e.f.homeLogo) + esc(e.f.home) + '</b><div class="hint">pour ' + f1(e.H[mk.f]) + ' · contre ' + f1(e.H[mk.a]) + '<br>' + e.H.n + ' matchs</div></div>' +
+      '<div><b>' + lg(e.f.awayLogo) + esc(e.f.away) + '</b><div class="hint">pour ' + f1(e.A[mk.f]) + ' · contre ' + f1(e.A[mk.a]) + '<br>' + e.A.n + ' matchs</div></div></div>' +
       '<div class="est"><span>' + f1(e.eh) + ' + ' + f1(e.ea) + '</span><span>Total attendu <b>' + f1(e.mu) + '</b></span></div>' + lad +
-      '<div class="hint" style="margin-top:8px">Fiabilité : <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national de chaque club (pas des matchs européens)' : '') + '. « pour » = moyenne par match de l’équipe, « contre » = moyenne concédée.</div></div>';
+      '<div class="hint" style="margin-top:8px">Fiabilité : <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national de chaque club (pas des matchs européens)' : '') + ([e.s.home, e.s.away].some(x => x && x.src === 'espn') ? ' · moyennes calculées sur les matchs de la compétition (ESPN)' : '') + '. « pour » = moyenne par match de l’équipe, « contre » = moyenne concédée.</div></div>';
   });
   $('analysisBody').innerHTML = h;
 }
