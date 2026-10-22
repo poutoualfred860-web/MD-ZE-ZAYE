@@ -420,12 +420,15 @@ const TEAM_ALIASES = {
   "sporting portugal": "Sp Lisbon",
   "sporting braga": "Sp Braga",
   "vitoria": "Guimaraes",
-  "olympiacos": "Olympiakos"
+  "olympiacos": "Olympiakos",
+  "inter milan": "Inter",
+  "sporting cp": "Sp Lisbon"
 };
 
 function teamTokens(name) {
   return String(name || "")
     .toLowerCase()
+    .replace(/ı/g, "i").replace(/ß/g, "ss").replace(/ø/g, "o").replace(/æ/g, "ae").replace(/ł/g, "l").replace(/đ/g, "d")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/&/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
@@ -585,6 +588,109 @@ app.post("/stats/batch", express.json({ limit: "300kb" }), async (req, res) => {
     }
   }
   res.json({ results });
+});
+
+// ===================================================================
+// Calendrier des matchs (ESPN, sans clé) : un jour, toutes les compétitions
+// ===================================================================
+const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
+const ESPN_LEAGUES = [
+  { slug: "eng.1", code: "PL", name: "Angleterre - Premier League", flag: "🇬🇧" },
+  { slug: "esp.1", code: "PD", name: "Espagne - LaLiga", flag: "🇪🇸" },
+  { slug: "ita.1", code: "SA", name: "Italie - Serie A", flag: "🇮🇹" },
+  { slug: "ger.1", code: "BL1", name: "Allemagne - Bundesliga", flag: "🇩🇪" },
+  { slug: "fra.1", code: "FL1", name: "France - Ligue 1", flag: "🇫🇷" },
+  { slug: "uefa.champions", code: "CL", name: "Ligue des champions", flag: "🇪🇺" },
+  { slug: "uefa.europa", code: "EL", name: "Ligue Europa", flag: "🇪🇺" },
+  { slug: "uefa.europa.conf", code: "ECL", name: "Ligue Europa Conférence", flag: "🇪🇺" },
+  { slug: "uefa.nations", code: "UNL", name: "Ligue des nations", flag: "🇪🇺" },
+  { slug: "por.1", code: "PPL", name: "Portugal - Liga Portugal", flag: "🇵🇹" },
+  { slug: "ned.1", code: "DED", name: "Pays-Bas - Eredivisie", flag: "🇳🇱" },
+  { slug: "tur.1", code: "T1", name: "Turquie - Süper Lig", flag: "🇹🇷" },
+  { slug: "bel.1", code: "B1", name: "Belgique - Pro League", flag: "🇧🇪" },
+  { slug: "sco.1", code: "SC0", name: "Écosse - Premiership", flag: "🇬🇧" },
+  { slug: "gre.1", code: "G1", name: "Grèce - Super League", flag: "🇬🇷" },
+  { slug: "eng.2", code: "ELC", name: "Angleterre - Championship", flag: "🇬🇧" }
+];
+const dayCache = new Map();
+
+function normalizeEspnEvent(ev, league) {
+  const comp = (ev.competitions && ev.competitions[0]) || {};
+  const list = comp.competitors || [];
+  const h = list.find(c => c.homeAway === "home");
+  const a = list.find(c => c.homeAway === "away");
+  if (!h || !a || !h.team || !a.team) return null;
+
+  const type = ((ev.status || comp.status || {}).type) || {};
+  let status = "SCHEDULED";
+  if (type.name === "STATUS_POSTPONED") status = "POSTPONED";
+  else if (type.name === "STATUS_CANCELED" || type.name === "STATUS_CANCELLED") status = "CANCELLED";
+  else if (type.state === "in") status = type.name === "STATUS_HALFTIME" ? "PAUSED" : "IN_PLAY";
+  else if (type.state === "post" || type.completed) status = "FINISHED";
+
+  const score = c => (status === "SCHEDULED" || c.score === undefined || c.score === "" || c.score === null) ? null : Number(c.score);
+  const team = c => ({
+    id: String(c.team.id || ""),
+    name: c.team.displayName || c.team.shortDisplayName || c.team.name || "",
+    crest: c.team.logo || ""
+  });
+
+  return {
+    id: "espn-" + ev.id,
+    code: league.code,
+    competition: league.name,
+    flag: league.flag,
+    utcDate: ev.date || comp.date || "",
+    status,
+    clock: (ev.status && ev.status.displayClock) || "",
+    home: team(h),
+    away: team(a),
+    homeScore: score(h),
+    awayScore: score(a)
+  };
+}
+
+async function espnLeagueDay(league, ymd) {
+  const key = league.slug + ":" + ymd;
+  const hit = dayCache.get(key);
+  if (hit && Date.now() - hit.time < 60 * 1000) return hit.events;
+
+  const response = await fetch(ESPN_BASE + "/" + league.slug + "/scoreboard?dates=" + ymd + "&limit=200", {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const data = await response.json();
+  const events = (data.events || []).map(ev => normalizeEspnEvent(ev, league)).filter(Boolean);
+  dayCache.set(key, { time: Date.now(), events });
+  return events;
+}
+
+app.get("/day", async (req, res) => {
+  const date = String(req.query.date || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: "Paramètre date invalide (format AAAA-MM-JJ)." });
+  }
+  const ymd = date.replace(/-/g, "");
+  const results = await Promise.allSettled(ESPN_LEAGUES.map(l => espnLeagueDay(l, ymd)));
+
+  const matches = [];
+  const diag = [];
+  results.forEach((r, i) => {
+    const code = ESPN_LEAGUES[i].code;
+    if (r.status === "fulfilled") {
+      matches.push(...r.value);
+      if (r.value.length) diag.push(code + " : " + r.value.length);
+    } else {
+      diag.push(code + " : erreur (" + (r.reason && r.reason.message) + ")");
+    }
+  });
+
+  if (results.every(r => r.status !== "fulfilled")) {
+    return res.status(502).json({ error: "ESPN est injoignable depuis le serveur.", diag });
+  }
+  matches.sort((a, b) => String(a.utcDate).localeCompare(String(b.utcDate)));
+  res.json({ source: "espn", date, count: matches.length, matches, diag });
 });
 
 app.listen(PORT, () => {
