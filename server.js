@@ -577,12 +577,7 @@ app.post("/stats/batch", express.json({ limit: "300kb" }), async (req, res) => {
     const id = String((item && item.id) || "");
     if (!id) continue;
     try {
-      results[id] = await statsPayload(
-        String(item.league || "").toUpperCase(),
-        String(item.home || ""),
-        String(item.away || ""),
-        null
-      );
+      results[id] = await statsForItem(item);
     } catch (error) {
       results[id] = { error: error.message };
     }
@@ -692,6 +687,219 @@ app.get("/day", async (req, res) => {
   matches.sort((a, b) => String(a.utcDate).localeCompare(String(b.utcDate)));
   res.json({ source: "espn", date, count: matches.length, matches, diag });
 });
+
+// ===================================================================
+// Statistiques réelles d'un match (ESPN) + moyennes par compétition
+// pour les compétitions absentes des fichiers CSV (Ligue Europa, etc.)
+// ===================================================================
+const ESPN_SUMMARY_HOSTS = [
+  "https://site.api.espn.com/apis/site/v2/sports/soccer",
+  "https://site.web.api.espn.com/apis/site/v2/sports/soccer"
+];
+const summaryCache = new Map();
+
+const STAT_KEYS = [
+  ["shotsOnTarget", /shotsontarget|ontarget/],
+  ["shots", /^(totalshots|shots)$/],
+  ["fouls", /foul/],
+  ["corners", /corner/],
+  ["yellow", /yellowcard/],
+  ["red", /^redcards?$/],
+  ["offsides", /offside/],
+  ["saves", /^saves$/],
+  ["possession", /possession/],
+  ["throwIns", /throw/]
+];
+const squash = text => String(text || "").toLowerCase().replace(/[^a-z]/g, "");
+const statNumber = v => {
+  const n = parseFloat(String(v === undefined || v === null ? "" : v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+function parseBoxscore(data) {
+  const header = (data && data.header && data.header.competitions && data.header.competitions[0]) || {};
+  const sideById = {};
+  (header.competitors || []).forEach(c => {
+    if (c.team && c.homeAway) sideById[String(c.team.id)] = c.homeAway;
+  });
+
+  const out = { home: {}, away: {} };
+  ((data && data.boxscore && data.boxscore.teams) || []).forEach(t => {
+    const side = t.homeAway || sideById[String(t.team && t.team.id)];
+    if (side !== "home" && side !== "away") return;
+    (t.statistics || []).forEach(st => {
+      const names = [squash(st.name), squash(st.label)];
+      for (const [key, re] of STAT_KEYS) {
+        if (out[side][key] !== undefined) continue;
+        if (names.some(n => n && re.test(n))) {
+          out[side][key] = statNumber(st.displayValue !== undefined ? st.displayValue : st.value);
+          break;
+        }
+      }
+    });
+  });
+
+  const goals = side => {
+    const c = (header.competitors || []).find(x => x.homeAway === side);
+    return c ? statNumber(c.score) : null;
+  };
+  const type = (header.status && header.status.type) || {};
+  STAT_KEYS.forEach(([key]) => {
+    if (out.home[key] === undefined) out.home[key] = null;
+    if (out.away[key] === undefined) out.away[key] = null;
+  });
+  return { home: out.home, away: out.away, goals: [goals("home"), goals("away")], state: type.state || "", clock: (header.status && header.status.displayClock) || "" };
+}
+
+async function espnSummary(slug, eventId) {
+  const key = slug + ":" + eventId;
+  const hit = summaryCache.get(key);
+  if (hit && Date.now() < hit.until) return hit.data;
+
+  let last = null;
+  for (const host of ESPN_SUMMARY_HOSTS) {
+    try {
+      const response = await fetch(host + "/" + slug + "/summary?event=" + encodeURIComponent(eventId), {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!response.ok) { last = new Error("HTTP " + response.status); continue; }
+      const parsed = parseBoxscore(await response.json());
+      const ttl = parsed.state === "post" ? 24 * 3600 * 1000 : 30 * 1000;
+      summaryCache.set(key, { until: Date.now() + ttl, data: parsed });
+      if (summaryCache.size > 2500) summaryCache.delete(summaryCache.keys().next().value);
+      return parsed;
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last || new Error("ESPN indisponible");
+}
+
+app.get("/match-stats", async (req, res) => {
+  const code = String(req.query.code || "").toUpperCase();
+  const event = String(req.query.event || "").replace(/^espn-/, "");
+  const league = ESPN_LEAGUES.find(l => l.code === code);
+  if (!league || !/^\d+$/.test(event)) {
+    return res.status(400).json({ error: "Paramètres code et event invalides." });
+  }
+  try {
+    res.json(Object.assign({ source: "espn", event }, await espnSummary(league.slug, event)));
+  } catch (error) {
+    res.status(502).json({ error: "Statistiques du match indisponibles (" + error.message + ")." });
+  }
+});
+
+// --- Moyennes par équipe calculées sur les matchs terminés d'une compétition ---
+const compStatsCache = new Map();
+const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+
+async function mapPool(items, size, fn) {
+  const out = new Array(items.length).fill(null);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (next < items.length) {
+      const k = next++;
+      try { out[k] = await fn(items[k]); } catch (e) { out[k] = null; }
+    }
+  }));
+  return out;
+}
+
+function accumulate(t, mine, theirs) {
+  t.n++;
+  [["shots", "s"], ["fouls", "f"], ["corners", "c"], ["yellow", "y"]].forEach(([name, k]) => {
+    const total = mine[k] + theirs[k];
+    t[name + "Tot"] += total;
+    t[name + "Tot2"] += total * total;
+  });
+  t.goalsFor += mine.g; t.goalsAgainst += theirs.g;
+  t.shotsFor += mine.s; t.shotsAgainst += theirs.s;
+  t.foulsFor += mine.f; t.foulsAgainst += theirs.f;
+  t.cornersFor += mine.c; t.cornersAgainst += theirs.c;
+  t.yellowFor += mine.y; t.yellowAgainst += theirs.y;
+}
+
+async function competitionHistory(league) {
+  const from = new Date(Date.now() - 75 * 24 * 3600 * 1000);
+  const response = await fetch(ESPN_BASE + "/" + league.slug + "/scoreboard?dates=" + ymd(from) + "-" + ymd(new Date()) + "&limit=500", {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const data = await response.json();
+  return (data.events || [])
+    .map(ev => normalizeEspnEvent(ev, league))
+    .filter(e => e && e.status === "FINISHED")
+    .sort((a, b) => String(b.utcDate).localeCompare(String(a.utcDate)))
+    .slice(0, 90);
+}
+
+function competitionStats(code) {
+  const hit = compStatsCache.get(code);
+  if (hit && Date.now() - hit.time < 3 * 3600 * 1000) return hit.promise;
+  const league = ESPN_LEAGUES.find(l => l.code === code);
+  const promise = (async () => {
+    const events = await competitionHistory(league);
+    const sums = await mapPool(events, 5, ev => espnSummary(league.slug, ev.id.replace(/^espn-/, "")));
+    const teams = {};
+    events.forEach((ev, i) => {
+      const p = sums[i];
+      if (!p || ev.homeScore === null || ev.awayScore === null) return;
+      const keys = ["shots", "fouls", "corners", "yellow"];
+      if (keys.some(k => p.home[k] === null || p.away[k] === null)) return;
+      const pack = (m, g) => ({ g, s: m.shots, f: m.fouls, c: m.corners, y: m.yellow });
+      [[ev.home, p.home, p.away, ev.homeScore, ev.awayScore], [ev.away, p.away, p.home, ev.awayScore, ev.homeScore]].forEach(([team, m, o, g, ga]) => {
+        if (!teams[team.id]) teams[team.id] = { name: team.name, all: emptyTotals() };
+        accumulate(teams[team.id].all, pack(m, g), pack(o, ga));
+      });
+    });
+    return teams;
+  })();
+  compStatsCache.set(code, { time: Date.now(), promise });
+  promise.catch(() => compStatsCache.delete(code));
+  return promise;
+}
+
+function espnSide(teams, id, requested, code) {
+  const t = teams[String(id)];
+  if (!t) return { requested, matched: null };
+  const league = ESPN_LEAGUES.find(l => l.code === code);
+  return {
+    requested, matched: t.name, league: code, leagueLabel: league ? league.name : code, season: "saison en cours",
+    src: "espn", all: averages(t.all), home: null, away: null, leagueAverages: null, recent: []
+  };
+}
+
+// CSV d'abord ; si une équipe est introuvable (ou compétition non couverte), moyennes ESPN de la compétition
+async function statsForItem(item) {
+  const league = String(item.league || "").toUpperCase();
+  const code = String(item.code || "").toUpperCase();
+  const home = String(item.home || "");
+  const away = String(item.away || "");
+  let payload = null;
+  let firstError = null;
+
+  if (league !== "ESPN") {
+    try { payload = await statsPayload(league, home, away, null); } catch (e) { firstError = e; }
+  }
+
+  const ok = side => side && side.matched && side.all;
+  if ((!payload || !ok(payload.home) || !ok(payload.away)) && ESPN_LEAGUES.some(l => l.code === code)) {
+    try {
+      const teams = await competitionStats(code);
+      const base = payload || { source: "espn", league: code, unavailable: ["Touches"] };
+      payload = Object.assign({}, base, {
+        home: ok(base.home) ? base.home : espnSide(teams, item.homeId, home, code),
+        away: ok(base.away) ? base.away : espnSide(teams, item.awayId, away, code)
+      });
+    } catch (e) {
+      if (!payload) throw firstError || e;
+    }
+  }
+  if (!payload) throw firstError || new Error("Statistiques indisponibles.");
+  return payload;
+}
 
 app.listen(PORT, () => {
   console.log("MD ZE ZAYE API démarrée sur le port " + PORT);

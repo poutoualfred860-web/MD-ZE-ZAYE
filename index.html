@@ -63,6 +63,10 @@ label.l{display:block;color:var(--muted);font-size:12px;font-weight:600;margin:1
 .hd .vs{color:var(--muted);font-weight:800;font-size:12px}
 .lg{width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:6px}
 .rowm .n span{display:flex;align-items:center}
+.est.real b{color:var(--green)}
+.est.real.bad b{color:var(--red)}
+.chk{display:flex;align-items:flex-start;gap:10px;margin-top:14px;font-size:14px;line-height:1.35}
+.chk input{width:22px;height:22px;accent-color:var(--navy);flex:none}
 .mc{padding:14px;border:1px solid var(--line);border-radius:18px;margin:12px 0;background:var(--card)}
 .mc h4{margin:0 0 3px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
@@ -105,6 +109,7 @@ label.l{display:block;color:var(--muted);font-size:12px;font-weight:600;margin:1
     <label class="l" id="lineLabel">Ligne</label>
     <div class="stepper"><button onclick="stepLine(-1)" aria-label="Baisser la ligne">−</button><b id="lineVal">9,5</b><button onclick="stepLine(1)" aria-label="Monter la ligne">+</button></div>
     <p class="hint" style="margin:10px 0 0" id="lineHelp"></p>
+    <label class="chk"><input type="checkbox" id="incDone" onchange="setIncDone(this.checked)"><span>Inclure les matchs terminés (avec leurs statistiques réelles). Les matchs en direct sont toujours inclus.</span></label>
   </div>
   <div id="filterBody"></div>
 </section>
@@ -157,7 +162,7 @@ const MARKETS = {
 
 // ---------- Préférences ----------
 const PK = 'mdzz_v3_prefs';
-let prefs = { leagues: [], market: 'corners', trend: 'high', lines: {}, safe: 0.8 };
+let prefs = { leagues: [], market: 'corners', trend: 'high', lines: {}, safe: 0.8, incDone: false };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(PK) || '{}')); } catch (e) { /* valeurs par défaut */ }
 if (!MARKETS[prefs.market]) prefs.market = 'corners';
 const savePrefs = () => { try { localStorage.setItem(PK, JSON.stringify(prefs)); } catch (e) { /* ignoré */ } };
@@ -275,10 +280,10 @@ async function loadMatchStats(f, force) {
   const cur = mstats[f.id];
   if (cur && cur.loading) return;
   if (cur && cur.ok && !force && !LIVE.has(f.status)) return;
-  mstats[f.id] = Object.assign({}, cur, { loading: true }); renderFixtures();
+  mstats[f.id] = Object.assign({}, cur, { loading: true }); renderAll();
   try { mstats[f.id] = { ok: true, data: await api('/match-stats?code=' + encodeURIComponent(f.code) + '&event=' + encodeURIComponent(f.eventId), null, 1) }; }
   catch (e) { mstats[f.id] = { error: e.message }; }
-  renderFixtures();
+  renderAll();
 }
 function matchStatsHtml(f) {
   const live = LIVE.has(f.status), m = mstats[f.id];
@@ -334,10 +339,12 @@ function setMarket(k) { prefs.market = k; savePrefs(); renderAll(); }
 function setTrend(t) { prefs.trend = t; savePrefs(); renderAll(); }
 function stepLine(d) { const k = prefs.market, v = Math.max(0.5, lineOf(k) + d); prefs.lines = Object.assign({}, prefs.lines, { [k]: v }); savePrefs(); renderAll(); }
 function setSafe(v) { prefs.safe = v; savePrefs(); renderAll(); }
+function setIncDone(v) { prefs.incDone = v; savePrefs(); renderAll(); fetchStats(candidates()); }
 
-function candidates() { return dayFixtures().filter(f => prefs.leagues.includes(f.code) && !DONE.has(f.status)); }
+function candidates() { return dayFixtures().filter(f => prefs.leagues.includes(f.code) && (!DONE.has(f.status) || (prefs.incDone && (f.status === 'FINISHED' || f.status === 'AWARDED')))); }
 
 async function fetchStats(list) {
+  list.filter(f => f.eventId && (f.status === 'FINISHED' || LIVE.has(f.status))).forEach(f => loadMatchStats(f, false));
   const todo = list.filter(f => covered(f.code) && !(f.id in statsMap) && !statsPending.has(f.id));
   if (!todo.length) return;
   todo.forEach(f => statsPending.add(f.id)); statsLoading = true; statsError = ''; renderAll();
@@ -376,12 +383,21 @@ function evaluate(f) {
   const H = s.home.all, A = s.away.all;
   if (!H || !A) return { f, ok: false, reason: 'Pas assez de matchs joués.' };
   const n = Math.min(H.n, A.n);
-  if (n < 5) return { f, ok: false, reason: 'Seulement ' + n + ' match(s) joué(s) par une des équipes (minimum 5).' };
+  const limited = [s.home, s.away].some(x => x && x.src === 'espn'), minN = limited ? 3 : 5;
+  if (n < minN) return { f, ok: false, reason: 'Seulement ' + n + ' match(s) joué(s) par une des équipes (minimum ' + minN + ').' };
   const eh = (H[mk.f] + A[mk.a]) / 2, ea = (A[mk.f] + H[mk.a]) / 2, mu = eh + ea;
   const vs = [H[mk.v], A[mk.v]].filter(v => v != null), v = Math.max(mu, vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : mu);
-  const cross = !!s.cross;
+  const cross = !!s.cross || limited;
   return { f, ok: true, s, H, A, eh, ea, mu, n, cross, level: cross ? 'faible' : (n >= 10 ? 'bonne' : 'moyenne'), dist: dist(mu, v) };
 }
+const REAL_KEY = { shots: 'shots', fouls: 'fouls', corners: 'corners', cards: 'yellow' };
+function actualOf(f) {
+  const m = mstats[f.id], k = REAL_KEY[prefs.market];
+  if (!m || !m.ok || !k) return null;
+  const h = m.data.home[k], a = m.data.away[k];
+  return h == null || a == null ? null : { h, a, total: h + a };
+}
+const isPlayed = f => f.status === 'FINISHED' || LIVE.has(f.status);
 function passes(e) { const line = lineOf(prefs.market); return prefs.trend === 'high' ? e.mu >= line : e.mu <= line; }
 
 function pick(e) {
@@ -423,6 +439,7 @@ function renderFilter() {
   const mk = MARKETS[prefs.market], line = lineOf(prefs.market);
   $('lineLabel').textContent = 'Ligne (total des deux équipes) — ' + mk.label;
   $('lineVal').textContent = f1(line);
+  $('incDone').checked = !!prefs.incDone;
   $('lineHelp').textContent = 'Un match est retenu si le total attendu de ' + mk.noun + ' est ' + (prefs.trend === 'high' ? 'au-dessus de ' : 'en dessous de ') + f1(line) + '.';
 
   let h = '';
@@ -434,8 +451,8 @@ function renderFilter() {
     if (statsLoading || (ev.pending && !statsError)) h = '<div class="empty">Chargement des statistiques des équipes… (' + candidates().length + ' match(s))</div>';
     else {
       if (statsError) h += '<div class="warning">Erreur de chargement des statistiques : ' + esc(statsError) + ' <button class="btn" onclick="fetchStats(candidates())">Réessayer</button></div>';
-      h += '<div class="card"><h2 class="title">Matchs retenus : ' + ev.kept.length + '</h2><div class="hint">' + candidates().length + ' match(s) à venir dans les championnats cochés · ' + ev.below.length + ' sans tendance · ' + ev.excluded.length + ' sans données fiables</div>' +
-        (ev.kept.length ? ev.kept.map(e => rowMatch(e.f, '<b>' + f1(e.mu) + '</b>attendu')).join('') : '<div class="empty">Aucun match ne correspond. Essaie une autre ligne ou un autre marché.</div>') + '</div>';
+      h += '<div class="card"><h2 class="title">Matchs retenus : ' + ev.kept.length + '</h2><div class="hint">' + candidates().length + ' match(s) dans les championnats cochés · ' + ev.below.length + ' sans tendance · ' + ev.excluded.length + ' sans données fiables</div>' +
+        (ev.kept.length ? ev.kept.map(e => { const ac = isPlayed(e.f) ? actualOf(e.f) : null; return rowMatch(e.f, '<b>' + f1(e.mu) + '</b>attendu' + (ac ? '<div style="margin-top:4px;color:var(--green)"><b style="display:inline;color:var(--green)">' + ac.total + '</b> réel</div>' : '')); }).join('') : '<div class="empty">Aucun match ne correspond. Essaie une autre ligne ou un autre marché.</div>') + '</div>';
       if (ev.excluded.length) h += '<div class="card"><div class="hint"><b>Écartés faute de données :</b><br>' + ev.excluded.map(e => esc(e.f.home) + ' — ' + esc(e.f.away) + ' : ' + esc(e.reason)).join('<br>') + '</div></div>';
     }
   }
@@ -461,6 +478,13 @@ function gate(title) {
   if (statsError) return contextHtml(title) + '<div class="warning">Erreur de chargement des statistiques : ' + esc(statsError) + ' <button class="btn" onclick="fetchStats(candidates())">Réessayer</button></div>';
   return null;
 }
+function realHtml(e, line, high) {
+  if (!isPlayed(e.f)) return '';
+  const ac = actualOf(e.f), live = LIVE.has(e.f.status), m = mstats[e.f.id];
+  if (!ac) return '<div class="hint" style="margin:4px 0">' + (m && m.loading ? 'Chargement des statistiques réelles du match…' : 'Statistiques réelles du match indisponibles (ESPN).') + '</div>';
+  const ok = high ? ac.total > line : ac.total < line;
+  return '<div class="est real ' + (live || ok ? '' : 'bad') + '"><span>' + (live ? 'En cours : ' : 'Réel : ') + ac.h + ' + ' + ac.a + '</span><span>Total <b>' + ac.total + '</b> ' + (live ? '' : (ok ? '✓' : '✗')) + '</span></div>';
+}
 function renderAnalysis() {
   const g = gate('Analyse'); if (g) { $('analysisBody').innerHTML = g; return; }
   const ev = evaluated(), mk = MARKETS[prefs.market], line = lineOf(prefs.market), high = prefs.trend === 'high';
@@ -474,13 +498,21 @@ function renderAnalysis() {
     h += '<div class="mc">' + header(e) +
       '<div class="two"><div><b>' + lg(e.f.homeLogo) + esc(e.f.home) + '</b><div class="hint">pour ' + f1(e.H[mk.f]) + ' · contre ' + f1(e.H[mk.a]) + '<br>' + e.H.n + ' matchs</div></div>' +
       '<div><b>' + lg(e.f.awayLogo) + esc(e.f.away) + '</b><div class="hint">pour ' + f1(e.A[mk.f]) + ' · contre ' + f1(e.A[mk.a]) + '<br>' + e.A.n + ' matchs</div></div></div>' +
-      '<div class="est"><span>' + f1(e.eh) + ' + ' + f1(e.ea) + '</span><span>Total attendu <b>' + f1(e.mu) + '</b></span></div>' + lad +
+      '<div class="est"><span>' + f1(e.eh) + ' + ' + f1(e.ea) + '</span><span>Total attendu <b>' + f1(e.mu) + '</b></span></div>' + realHtml(e, line, high) + lad +
       '<div class="hint" style="margin-top:8px">Fiabilité : <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national de chaque club (pas des matchs européens)' : '') + ([e.s.home, e.s.away].some(x => x && x.src === 'espn') ? ' · moyennes calculées sur les matchs de la compétition (ESPN)' : '') + '. « pour » = moyenne par match de l’équipe, « contre » = moyenne concédée.</div></div>';
   });
   $('analysisBody').innerHTML = h;
 }
 
 // ---------- Rendu Pronostics ----------
+function resultHtml(e, p) {
+  if (!isPlayed(e.f)) return '';
+  const ac = actualOf(e.f);
+  if (!ac) return '<div class="hint" style="margin:6px 0">Résultat réel indisponible pour le moment.</div>';
+  if (LIVE.has(e.f.status)) return '<div class="est real"><span>En cours</span><span><b>' + ac.total + '</b> ' + MARKETS[prefs.market].noun + ' pour l’instant</span></div>';
+  const win = p.dir === 'Plus de' ? ac.total > p.line : ac.total < p.line;
+  return '<div class="est real ' + (win ? '' : 'bad') + '"><span>Résultat réel</span><span><b>' + ac.total + '</b> ' + MARKETS[prefs.market].noun + ' ' + (win ? '✓ prono réussi' : '✗ prono raté') + '</span></div>';
+}
 function renderPronostics() {
   const g = gate('Pronostics'); if (g) { $('pronosBody').innerHTML = g; return; }
   const ev = evaluated(), mk = MARKETS[prefs.market];
@@ -493,7 +525,7 @@ function renderPronostics() {
     const e = x.e, p = x.p;
     h += '<div class="mc">' + header(e) + '<div class="pick">' + p.dir + ' ' + f1(p.line) + ' ' + mk.noun + '</div>' +
       '<div class="pp"><div class="bar"><span style="width:' + pc(p.p) + '%"></span></div><b>' + pc(p.p) + ' %</b></div>' +
-      '<div class="hint">Total attendu ' + f1(e.mu) + ' · ' + e.n + ' matchs minimum par équipe · fiabilité <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national : seuil relevé de 5 points' : '') + '</div></div>';
+      resultHtml(e, p) + '<div class="hint">Total attendu ' + f1(e.mu) + ' · ' + e.n + ' matchs minimum par équipe · fiabilité <b>' + e.level + '</b>' + (e.cross ? ' · moyennes du championnat national : seuil relevé de 5 points' : '') + '</div></div>';
   });
   if (ev.kept.length && !good.length) h += '<div class="empty">Aucun prono safe à ce niveau. Baisse le niveau de sécurité ou change de marché.</div>';
   if (none.length && good.length) h += '<div class="card"><div class="hint">' + none.length + ' match(s) analysé(s) sans prono safe : ' + none.map(x => esc(x.e.f.home) + ' — ' + esc(x.e.f.away)).join(' · ') + '</div></div>';
