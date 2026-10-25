@@ -608,6 +608,7 @@ const ESPN_LEAGUES = [
   { slug: "eng.2", code: "ELC", name: "Angleterre - Championship", flag: "🇬🇧" }
 ];
 const dayCache = new Map();
+const leagueLogos = {};
 
 function normalizeEspnEvent(ev, league) {
   const comp = (ev.competitions && ev.competitions[0]) || {};
@@ -656,6 +657,8 @@ async function espnLeagueDay(league, ymd) {
   });
   if (!response.ok) throw new Error("HTTP " + response.status);
   const data = await response.json();
+  const logo = data.leagues && data.leagues[0] && data.leagues[0].logos && data.leagues[0].logos[0] && data.leagues[0].logos[0].href;
+  if (logo) leagueLogos[league.code] = logo;
   const events = (data.events || []).map(ev => normalizeEspnEvent(ev, league)).filter(Boolean);
   dayCache.set(key, { time: Date.now(), events });
   return events;
@@ -685,7 +688,9 @@ app.get("/day", async (req, res) => {
     return res.status(502).json({ error: "ESPN est injoignable depuis le serveur.", diag });
   }
   matches.sort((a, b) => String(a.utcDate).localeCompare(String(b.utcDate)));
-  res.json({ source: "espn", date, count: matches.length, matches, diag });
+  const logos = {};
+  matches.forEach(m => { if (leagueLogos[m.code]) logos[m.code] = leagueLogos[m.code]; });
+  res.json({ source: "espn", date, count: matches.length, matches, diag, logos });
 });
 
 // ===================================================================
@@ -900,6 +905,30 @@ async function statsForItem(item) {
   if (!payload) throw firstError || new Error("Statistiques indisponibles.");
   return payload;
 }
+
+// Proxy d'images (logos d'équipes et de compétitions) : le navigateur peut ainsi les dessiner
+// dans une vraie image téléchargeable (sans cela, il bloque l'export à cause des règles CORS).
+const IMG_HOSTS = ["a.espncdn.com", "a1.espncdn.com", "a2.espncdn.com", "a3.espncdn.com", "a4.espncdn.com", "crests.football-data.org", "upload.wikimedia.org"];
+app.get("/img", async (req, res) => {
+  let url;
+  try { url = new URL(String(req.query.u || "")); } catch (e) { return res.status(400).json({ error: "URL invalide." }); }
+  if (url.protocol !== "https:" || !IMG_HOSTS.includes(url.hostname)) {
+    return res.status(400).json({ error: "Hôte non autorisé." });
+  }
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { Accept: "image/*" } });
+    const type = response.headers.get("content-type") || "";
+    if (!response.ok || !type.startsWith("image/")) return res.status(502).json({ error: "Image indisponible." });
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > 2 * 1024 * 1024) return res.status(413).json({ error: "Image trop lourde." });
+    res.set("Content-Type", type);
+    res.set("Cache-Control", "public, max-age=604800");
+    res.set("Access-Control-Allow-Origin", "*");
+    res.send(buffer);
+  } catch (error) {
+    res.status(502).json({ error: "Image indisponible." });
+  }
+});
 
 app.listen(PORT, () => {
   console.log("MD ZE ZAYE API démarrée sur le port " + PORT);
