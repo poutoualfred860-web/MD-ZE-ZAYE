@@ -218,9 +218,10 @@ async function api(path, opts, tries) {
 }
 
 // ---------- Chargement des matchs d'un jour ----------
+const ESPN_LOGO = id => id ? 'https://a.espncdn.com/i/teamlogos/soccer/500/' + id + '.png' : '';
 const fromEspn = m => ({
   id: m.id, code: m.code, comp: m.competition, flag: m.flag, utc: m.utcDate, status: m.status, clock: m.clock || '',
-  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || '', awayLogo: m.away.crest || '', hg: m.homeScore, ag: m.awayScore,
+  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || ESPN_LOGO(m.home.id), awayLogo: m.away.crest || ESPN_LOGO(m.away.id), hg: m.homeScore, ag: m.awayScore,
   homeId: m.home.id || '', awayId: m.away.id || '', eventId: String(m.id).replace(/^espn-/, '')
 });
 const fromFd = x => {
@@ -611,7 +612,7 @@ function modelInputs(s) {
   const fH = formFactor(s.home), fA = formFactor(s.away);
   const baseH = (lh.homeGoals + la.homeGoals) / 2, baseA = (lh.awayGoals + la.awayGoals) / 2;
   const xh = clampN(baseH * attHv * fH.att * defAv * fA.def, 0.2, 3.8), xa = clampN(baseA * attAv * fA.att * defHv * fH.def, 0.2, 3.8);
-  return { lh: xh, la: xa, n, cross, limited };
+  return { lh: xh, la: xa, n, cross, limited, base: [baseH, baseA] };
 }
 
 function scoreMatrix(lh, la) {
@@ -631,61 +632,79 @@ function sumM(M, f) { let s = 0; for (let i = 0; i <= MAXG; i++) for (let j = 0;
 
 const SETS = { '1': (i, j) => i > j, '2': (i, j) => i < j, '1X': (i, j) => i >= j, 'X2': (i, j) => i <= j, '12': (i, j) => i !== j };
 
-function mainPick(P, home, away) {
-  const single = P.p1 >= P.p2 ? { code: '1', p: P.p1 } : { code: '2', p: P.p2 };
-  let pick = single;
-  if (single.p < 0.50) {
-    pick = [{ code: '1X', p: P.p1 + P.px }, { code: 'X2', p: P.px + P.p2 }, { code: '12', p: P.p1 + P.p2 }]
-      .filter(x => x.code !== '12' || x.p >= 0.78).sort((a, b) => b.p - a.p)[0];
-  }
-  const sub = { '1': 'Victoire ' + home, '2': 'Victoire ' + away, '1X': home + ' ou nul', 'X2': away + ' ou nul', '12': 'Pas de match nul' }[pick.code];
-  return { code: pick.code, p: pick.p, sub };
+const fillNames = (t, h, a) => String(t).replace(/\{H\}/g, h).replace(/\{A\}/g, a);
+function chkPred(c) {
+  if (c.t === 'ou') return c.side === 'o' ? (i, j) => i + j > c.line : (i, j) => i + j < c.line;
+  if (c.t === 'btts') return (i, j) => ((i > 0 && j > 0) === (c.side === 'y'));
+  if (c.t === 'dc' || c.t === '1x2') return SETS[c.set];
+  return (i, j) => (c.team === 'h' ? i : j) >= c.k;
 }
-function bestScore(M, code) {
-  const f = SETS[code]; let best = null;
+// Tous les marchés possibles ; « min » = probabilité minimale pour qu'ils puissent devenir le pronostic principal
+function marketList(M) {
+  const L = [], add = (fam, code, subT, chk, min) => L.push({ fam, code, subT, chk, min, p: sumM(M, chkPred(chk)) });
+  add('1x2', '1', 'Victoire {H}', { t: '1x2', set: '1' }, 0.55);
+  add('1x2', '2', 'Victoire {A}', { t: '1x2', set: '2' }, 0.55);
+  add('dc', '1X', '{H} ou nul', { t: 'dc', set: '1X' }, 0.68);
+  add('dc', 'X2', '{A} ou nul', { t: 'dc', set: 'X2' }, 0.68);
+  add('dc', '12', 'Pas de match nul', { t: 'dc', set: '12' }, 0.80);
+  [[1.5, 0.72, 0.58], [2.5, 0.60, 0.62], [3.5, 0.55, 0.80]].forEach(([l, mo, mu]) => {
+    add('ou', '+' + frn(l), 'Plus de ' + frn(l) + (l < 2 ? ' but' : ' buts'), { t: 'ou', line: l, side: 'o' }, mo);
+    add('ou', '-' + frn(l), 'Moins de ' + frn(l) + ' buts', { t: 'ou', line: l, side: 'u' }, mu);
+  });
+  add('btts', 'OUI', 'Les deux équipes marquent : Oui', { t: 'btts', side: 'y' }, 0.62);
+  add('btts', 'NON', 'Les deux équipes marquent : Non', { t: 'btts', side: 'n' }, 0.62);
+  add('tg', '+0,5', '{H} marque (+0,5 but)', { t: 'tg', team: 'h', k: 1 }, 0.80);
+  add('tg', '+0,5', '{A} marque (+0,5 but)', { t: 'tg', team: 'a', k: 1 }, 0.78);
+  add('tg', '+1,5', '{H} marque 2 buts ou plus', { t: 'tg', team: 'h', k: 2 }, 0.60);
+  add('tg', '+1,5', '{A} marque 2 buts ou plus', { t: 'tg', team: 'a', k: 2 }, 0.60);
+  return L;
+}
+// Pronostic principal = le marché où ce match s'écarte le plus d'un match moyen du championnat,
+// parmi ceux qui atteignent leur seuil de probabilité (ni toujours « victoire », ni toujours « plus de 1,5 »).
+function chooseMain(L, baseM) {
+  L.forEach(x => { x.base = sumM(baseM, chkPred(x.chk)); x.edge = x.p - x.base; });
+  const ok = L.filter(x => x.p >= x.min).sort((a, b) => b.edge - a.edge || b.p - a.p);
+  if (ok.length) return Object.assign({ weak: false }, ok[0]);
+  return Object.assign({ weak: true }, L.slice().sort((a, b) => b.p - a.p)[0]);
+}
+function bestScore(M, f) {
+  let best = null;
   for (let i = 0; i <= MAXG; i++) for (let j = 0; j <= MAXG; j++) if (f(i, j) && (!best || M[i][j] > best.p)) best = { h: i, a: j, p: M[i][j] };
   return best;
 }
-
-// Autres marchés : on garde, par famille, le plus probable (entre 62 % et 95 %), puis les 3 meilleurs
-function otherMarkets(M, home, away, pickCode) {
-  const over = l => sumM(M, (i, j) => i + j > l), fams = [], keep = a => a.filter(x => x.p >= 0.62 && x.p <= 0.95).sort((x, y) => y.p - x.p)[0];
-  const tot = [];
-  [1.5, 2.5, 3.5].forEach(l => { const o = over(l); tot.push({ p: o, label: 'Plus de ' + frn(l) + (l < 2 ? ' but' : ' buts'), chk: { t: 'ou', line: l, side: 'o' } }, { p: 1 - o, label: 'Moins de ' + frn(l) + ' buts', chk: { t: 'ou', line: l, side: 'u' } }); });
-  fams.push(keep(tot));
-  const b = sumM(M, (i, j) => i > 0 && j > 0);
-  fams.push(keep([{ p: b, label: 'Les deux équipes marquent : Oui', chk: { t: 'btts', side: 'y' } }, { p: 1 - b, label: 'Les deux équipes marquent : Non', chk: { t: 'btts', side: 'n' } }]));
-  if (pickCode === '1' || pickCode === '2') {
-    const c = pickCode === '1' ? '1X' : 'X2', p = sumM(M, SETS[c]);
-    fams.push(keep([{ p, label: (pickCode === '1' ? home : away) + ' ou nul (' + c + ')', chk: { t: 'dc', set: c } }]));
-  }
-  const tg = [];
-  [['h', home, 1], ['a', away, 1], ['h', home, 2], ['a', away, 2]].forEach(([t, name, k]) => {
-    tg.push({ p: sumM(M, (i, j) => (t === 'h' ? i : j) >= k), label: name + ' +' + frn(k - 0.5) + (k === 1 ? ' but' : ' buts'), chk: { t: 'tg', team: t, k } });
-  });
-  fams.push(keep(tg));
-  return fams.filter(Boolean).sort((x, y) => y.p - x.p).slice(0, 3);
+// Autres marchés : le plus probable de chaque famille (entre 62 % et 95 %), hors famille du pronostic principal, puis les 3 meilleurs
+function otherMarkets(L, main) {
+  const used = new Set([main.fam]), out = [];
+  L.filter(x => x !== main && x.p >= 0.62 && x.p <= 0.95).sort((x, y) => y.p - x.p).forEach(x => { if (out.length < 3 && !used.has(x.fam)) { used.add(x.fam); out.push(x); } });
+  return out;
 }
-
+const CONF_LABELS = ['Faible', 'Moyenne', 'Forte'];
 function confidenceOf(n, cross, limited, pick) {
   let dq = n >= 12 ? 1 : n >= 8 ? 0.75 : n >= 5 ? 0.55 : 0.35;
   if (limited) dq = Math.min(dq, 0.4); if (cross) dq = Math.min(dq, 0.5);
-  const base = pick.code.length === 1 ? 0.40 : 0.62, sharp = clampN((pick.p - base) / (0.90 - base), 0, 1);
-  const conf = 0.55 * dq + 0.45 * sharp;
-  let label = conf >= 0.72 ? 'Solide' : conf >= 0.5 ? 'Correcte' : 'Prudente';
-  if (cross || limited) label = 'Prudente';
-  return { bars: clampN(Math.round(conf * 5), 1, 5), label };
+  const lo = (pick.min || 0.55) - 0.10, sharp = clampN((pick.p - lo) / (0.92 - lo), 0, 1);
+  let conf = 0.55 * dq + 0.45 * sharp; if (pick.weak) conf = Math.min(conf, 0.45);
+  let level = conf >= 0.72 ? 2 : conf >= 0.5 ? 1 : 0; if (cross || limited) level = 0;
+  const bars = level === 2 ? clampN(Math.round(conf * 5), 4, 5) : level === 1 ? 3 : clampN(Math.round(conf * 5), 1, 2);
+  return { level, bars, label: CONF_LABELS[level] };
+}
+// anciens enregistrements : Prudente / Correcte / Solide
+function confInfo(c) {
+  const level = c.level != null ? c.level : (c.label === 'Solide' ? 2 : c.label === 'Correcte' ? 1 : 0);
+  return { level, label: CONF_LABELS[level], bars: c.bars, color: ['#d9402f', '#f2b705', '#27a85f'][level], text: ['#b3261a', '#8a6500', '#1a8a4f'][level] };
 }
 
 function predictFixture(f) {
   const m = modelInputs(statsMap[f.id]);
   if (m.err) return { err: m.err };
-  const M = scoreMatrix(m.lh, m.la);
+  const M = scoreMatrix(m.lh, m.la), L = marketList(M), main = chooseMain(L, scoreMatrix(m.base[0], m.base[1]));
   const P = { p1: sumM(M, SETS['1']), px: sumM(M, (i, j) => i === j), p2: sumM(M, SETS['2']) };
-  const pick = mainPick(P, f.home, f.away), sc = bestScore(M, pick.code);
   return {
-    pick, score: sc, p1: P.p1, px: P.px, p2: P.p2, lam: [m.lh, m.la], n: m.n, cross: m.cross, limited: m.limited,
-    others: otherMarkets(M, f.home, f.away, pick.code), conf: confidenceOf(m.n, m.cross, m.limited, pick), ts: Date.now()
+    v: 2,
+    pick: { code: main.code, p: main.p, sub: fillNames(main.subT, f.home, f.away), subT: main.subT, chk: main.chk, fam: main.fam, min: main.min, weak: main.weak },
+    score: bestScore(M, chkPred(main.chk)), p1: P.p1, px: P.px, p2: P.p2, lam: [m.lh, m.la], n: m.n, cross: m.cross, limited: m.limited,
+    others: otherMarkets(L, main).map(x => ({ p: x.p, label: fillNames(x.subT, f.home, f.away), labelT: x.subT, chk: x.chk, fam: x.fam })),
+    conf: confidenceOf(m.n, m.cross, m.limited, main), ts: Date.now()
   };
 }
 
@@ -702,10 +721,9 @@ const startedF = f => LIVE.has(f.status) || DONE.has(f.status) || (f.utc && Date
 const skipF = f => f.status === 'CANCELLED' || f.status === 'POSTPONED';
 
 function hitOf(p, res) {
-  const h = res.hg, a = res.ag, ok = SETS[p.pick.code](h, a);
-  const chk = c => c.t === 'ou' ? (c.side === 'o' ? h + a > c.line : h + a < c.line) : c.t === 'btts' ? ((h > 0 && a > 0) === (c.side === 'y')) :
-    c.t === 'dc' ? SETS[c.set](h, a) : (c.team === 'h' ? h : a) >= c.k;
-  return { main: ok, score: p.score.h === h && p.score.a === a, others: p.others.map(o => chk(o.chk)) };
+  const h = res.hg, a = res.ag;
+  const main = p.pick.chk ? chkPred(p.pick.chk)(h, a) : SETS[p.pick.code](h, a);
+  return { main, score: p.score.h === h && p.score.a === a, others: p.others.map(o => chkPred(o.chk)(h, a)) };
 }
 
 // ---------- État Prédiction ----------
@@ -728,16 +746,19 @@ function buildDay(date) {
   ((days[date] && days[date].fixtures) || []).forEach(f => {
     if (skipF(f)) return;
     const h = hist[f.id], started = startedF(f);
+    const fin = f.status === 'FINISHED' && f.hg != null && f.ag != null ? { hg: f.hg, ag: f.ag } : null;
     if (started) {
-      if (h) items.push({ f, pred: h.pred, frozen: true });
-      else skipped.push({ f, reason: 'Match déjà commencé : aucun pronostic n’avait été enregistré avant le coup d’envoi.' });
+      if (h) {
+        if (fin && !h.res) h.res = fin;
+        items.push({ f, pred: h.pred, frozen: true, res: h.res || fin, live: LIVE.has(f.status) ? { hg: f.hg == null ? 0 : f.hg, ag: f.ag == null ? 0 : f.ag } : null });
+      } else skipped.push({ f, reason: 'Match déjà commencé : aucun pronostic n’avait été enregistré avant le coup d’envoi.' });
       return;
     }
     if (!covered(f.code)) { skipped.push({ f, reason: 'Statistiques indisponibles pour cette compétition.' }); return; }
-    const p = (h && !predInfo.force) ? h.pred : predictFixture(f);
+    const p = (h && h.pred.v === 2 && !predInfo.force) ? h.pred : predictFixture(f);
     if (p.err) { skipped.push({ f, reason: p.err }); return; }
-    hist[f.id] = { id: f.id, date, code: f.code, comp: f.comp, home: f.home, away: f.away, hl: f.homeLogo || '', al: f.awayLogo || '', utc: f.utc, pred: p, res: (h && h.res) || null };
-    items.push({ f, pred: p, frozen: false });
+    hist[f.id] = { id: f.id, date, code: f.code, comp: f.comp, home: f.home, away: f.away, hl: f.homeLogo || '', al: f.awayLogo || '', hi: f.homeId || '', ai: f.awayId || '', utc: f.utc, pred: p, res: (h && h.res) || null };
+    items.push({ f, pred: p, frozen: false, res: null, live: null });
   });
   return { date, items, skipped };
 }
@@ -758,18 +779,26 @@ async function generatePred(force) {
   renderPrediction(); updateResults();
 }
 
-async function updateResults() {
+async function updateResults(force) {
   const today = todayISO(), min = addDays(today, -7);
-  const pend = Object.values(hist).filter(h => !h.res && h.date <= today && h.date >= min);
-  const dates = [...new Set(pend.map(h => h.date))].filter(d => !resolvedDates[d]);
+  const pend = Object.values(hist).filter(h => !h.res && h.date <= today && h.date >= min && Date.parse(h.utc) < Date.now());
+  const dates = [...new Set(pend.map(h => h.date))].filter(d => force || !resolvedDates[d]);
   for (const d of dates) { resolvedDates[d] = true; await ensureDate(d, true); }
   let changed = false;
   pend.forEach(h => {
     const f = ((days[h.date] && days[h.date].fixtures) || []).find(x => x.id === h.id);
     if (f && f.status === 'FINISHED' && f.hg != null && f.ag != null) { h.res = { hg: f.hg, ag: f.ag }; changed = true; }
   });
-  if (changed) { saveHist(); renderHistory(); }
+  if (changed) saveHist();
+  if (dates.length || changed) { predInfo.days = (predInfo.days || []).map(d => buildDay(d.date)); renderPrediction(); renderHistory(); }
 }
+// les résultats et les scores en direct se mettent à jour tout seuls pendant que la rubrique est ouverte
+setInterval(() => {
+  if (predState !== 'ok' || $('prediction').classList.contains('hidden') || document.hidden) return;
+  const live = (predInfo.days || []).some(d => d.items.some(it => it.live));
+  const pend = Object.values(hist).some(h => !h.res && h.date <= todayISO() && Date.parse(h.utc) < Date.now());
+  if (live || pend) updateResults(true);
+}, 120000);
 
 // ---------- Affiches : spécifications ----------
 function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
@@ -778,7 +807,7 @@ const fmtDate = d => d.slice(8, 10) + ' / ' + d.slice(5, 7) + ' / ' + d.slice(0,
 
 function histDay(date) {
   const items = Object.values(hist).filter(h => h.date === date).sort((a, b) => String(a.utc).localeCompare(String(b.utc)))
-    .map(h => ({ f: { id: h.id, code: h.code, comp: h.comp, home: h.home, away: h.away, homeLogo: h.hl || '', awayLogo: h.al || '', utc: h.utc }, pred: h.pred, frozen: true }));
+    .map(h => ({ f: { id: h.id, code: h.code, comp: h.comp, home: h.home, away: h.away, homeLogo: h.hl || '', awayLogo: h.al || '', homeId: h.hi || '', awayId: h.ai || '', utc: h.utc }, pred: h.pred, frozen: true, res: h.res || null, live: null }));
   return { date, items, skipped: [] };
 }
 const isHistView = () => String(pf.day).startsWith('h:');
@@ -797,7 +826,7 @@ function buildSpecs() {
       const total = Math.ceil(g.items.length / POSTER_ROWS);
       for (let i = 0; i < total; i++) {
         const items = g.items.slice(i * POSTER_ROWS, (i + 1) * POSTER_ROWS);
-        const sig = hashStr(items.map(it => it.f.id + it.pred.pick.code + it.pred.score.h + '-' + it.pred.score.a + pcc(it.pred.pick.p) + it.pred.conf.bars).join('|'));
+        const sig = hashStr(items.map(it => it.f.id + it.pred.pick.code + it.pred.score.h + '-' + it.pred.score.a + pcc(it.pred.pick.p) + it.pred.conf.bars + (it.pred.conf.level == null ? '' : it.pred.conf.level) + (it.res ? 'R' + it.res.hg + ':' + it.res.ag : it.live ? 'L' + it.live.hg + ':' + it.live.ag : '') + it.f.home + it.f.away + (it.f.homeLogo ? 'l' : '')).join('|'));
         out.push({ key: d.date + '|' + g.code + '|' + i + '|' + sig, date: d.date, off, dayWord: dayWord(d.date, off), code: g.code, comp: g.comp, idx: i + 1, total, items, logo: LEAGUE_LOGOS[g.code] || '' });
       }
     });
@@ -812,14 +841,43 @@ function loadImg(src, proxy) {
   if (!src) return Promise.resolve(null);
   const url = proxy && /^https?:/.test(src) ? BASE + '/img?u=' + encodeURIComponent(src) : src;
   if (imgCache.has(url)) return imgCache.get(url);
-  const p = new Promise(res => {
+  const attempt = u => new Promise(res => {
     const im = new Image(); im.crossOrigin = 'anonymous';
-    const t = setTimeout(() => res(null), 9000);
+    const t = setTimeout(() => res(null), 15000);
     im.onload = () => { clearTimeout(t); res(im); }; im.onerror = () => { clearTimeout(t); res(null); };
-    im.src = url;
-  }).then(im => { if (!im) imgCache.delete(url); return im; });
+    im.src = u;
+  });
+  const p = attempt(url).then(im => im || attempt(url + (url.includes('?') ? '&' : '?') + 'retry=1')).then(im => { if (!im) imgCache.delete(url); return im; });
   imgCache.set(url, p); return p;
 }
+const TEAM_SHORT = {
+  'manchester city': 'Man City', 'manchester united': 'Man United', 'newcastle united': 'Newcastle', 'tottenham hotspur': 'Tottenham',
+  'wolverhampton wanderers': 'Wolves', 'brighton and hove albion': 'Brighton', 'leeds united': 'Leeds', 'nottingham forest': 'Nottingham Forest',
+  'paris saint germain': 'PSG', 'olympique de marseille': 'Marseille', 'olympique marseille': 'Marseille', 'olympique lyonnais': 'Lyon',
+  'club atletico de madrid': 'Atlético Madrid', 'atletico de madrid': 'Atlético Madrid', 'atletico madrid': 'Atlético Madrid',
+  'fc internazionale milano': 'Inter Milan', 'internazionale milano': 'Inter Milan', 'internazionale': 'Inter Milan', 'inter': 'Inter Milan',
+  'bayern munchen': 'Bayern Munich', 'fc bayern munchen': 'Bayern Munich', 'bayer 04 leverkusen': 'Leverkusen', 'bayer leverkusen': 'Leverkusen',
+  'borussia monchengladbach': 'Gladbach', 'borussia dortmund': 'Dortmund', 'real sociedad de futbol': 'Real Sociedad', 'real betis balompie': 'Real Betis',
+  'rayo vallecano de madrid': 'Rayo Vallecano', 'rcd espanyol de barcelona': 'Espanyol', 'deportivo alaves': 'Alavés', 'rc celta de vigo': 'Celta Vigo',
+  'sporting clube de portugal': 'Sporting CP', 'sport lisboa e benfica': 'Benfica', 'sporting clube de braga': 'Sporting Braga',
+  'afc ajax': 'Ajax', 'feyenoord rotterdam': 'Feyenoord', 'galatasaray sk': 'Galatasaray', 'fenerbahce sk': 'Fenerbahçe', 'besiktas jk': 'Beşiktaş',
+  'club brugge kv': 'Club Brugge', 'royal union saint gilloise': 'Union SG', 'fk qarabag': 'Qarabağ', 'ac milan': 'AC Milan', 'ac sparta praha': 'Sparta Prague',
+  'hellas verona': 'Hellas Verona', 'ssc napoli': 'Napoli', 'as roma': 'Roma', 'ss lazio': 'Lazio', 'as monaco': 'Monaco', 'rb leipzig': 'RB Leipzig'
+};
+const nameKey = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const LEAD_TOK = new Set(['FC', 'CF', 'AFC', 'SC', 'SK', 'JK', 'KV', 'FK', 'BK', 'SV', 'VfB', 'VfL', 'TSG', '1.', 'CD', 'UD', 'RCD', 'RC', 'SD', 'SSC', 'SS', 'US', 'ACF', 'AS', 'OGC', 'LOSC', 'SCO', 'HSC', 'KRC', 'KAA', 'RSC', 'FSV', 'TSV', 'BSC', 'SG', 'CA', 'GD', 'NK', 'HNK', 'MFK']);
+const TRAIL_TOK = new Set(['FC', 'CF', 'AFC', 'SC', 'SK', 'JK', 'KV', 'FK', 'BK', 'SAD', 'CFC', 'AS', 'SV', 'BC']);
+function shortName(name) {
+  const full = String(name || '').trim(), k = nameKey(full);
+  if (TEAM_SHORT[k]) return TEAM_SHORT[k];
+  let w = full.split(/\s+/);
+  while (w.length > 1 && LEAD_TOK.has(w[0])) w.shift();
+  while (w.length > 1 && (TRAIL_TOK.has(w[w.length - 1]) || /^\d+$/.test(w[w.length - 1]))) w.pop();
+  w = w.filter((t, i) => !(w.length > 1 && /^\d{2,4}$/.test(t)));
+  const out = w.join(' ');
+  return TEAM_SHORT[nameKey(out)] || out || full;
+}
+const dispText = (t, f, hn, an) => fillNames(t, hn, an).split(f.home).join(hn).split(f.away).join(an);
 function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
 function tx(c, t, x, y, o) { o = o || {}; c.font = (o.w || 700) + (o.i ? ' italic ' : ' ') + (o.s || 20) + 'px ' + FONT; c.fillStyle = o.c || '#0f1b3d'; c.textAlign = o.a || 'left'; c.textBaseline = 'middle'; c.fillText(t, x, y); }
 function fitSize(c, t, maxW, size, min, w) { let s = size; c.font = (w || 700) + ' ' + s + 'px ' + FONT; while (c.measureText(t).width > maxW && s > min) { s--; c.font = (w || 700) + ' ' + s + 'px ' + FONT; } return s; }
@@ -845,7 +903,10 @@ async function drawPoster(canvas, spec, S) {
   const c = canvas.getContext('2d'), W = 1080, H = 1350, theme = THEME[spec.code] || '#14213d';
   canvas.width = W * S; canvas.height = H * S; c.setTransform(S, 0, 0, S, 0, 0);
   const [logo, lg] = await Promise.all([loadImg(LOGO_SRC, false), loadImg(spec.logo, true)]);
-  const tl = await Promise.all(spec.items.map(it => Promise.all([loadImg(it.f.homeLogo, true), loadImg(it.f.awayLogo, true)])));
+  let missing = 0;
+  const teamLogo = async (url, id) => { let im = await loadImg(url, true); if (!im && id && url !== ESPN_LOGO(id)) im = await loadImg(ESPN_LOGO(id), true); if (!im) missing++; return im; };
+  const tl = await Promise.all(spec.items.map(it => Promise.all([teamLogo(it.f.homeLogo, it.f.homeId), teamLogo(it.f.awayLogo, it.f.awayId)])));
+  canvas._missing = missing + (spec.logo && !lg ? 1 : 0);
   // fond blanc + filigrane
   c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
   const g = c.createLinearGradient(0, 0, 0, 380); g.addColorStop(0, '#eef3ff'); g.addColorStop(1, '#ffffff'); c.fillStyle = g; c.fillRect(0, 0, W, 380);
@@ -865,44 +926,61 @@ async function drawPoster(canvas, spec, S) {
   rr(c, 852, 74, 188, 44, 22); c.fillStyle = '#0f1b45'; c.fill(); tx(c, fmtDate(spec.date), 946, 96, { s: 21, c: '#fff', w: 800, a: 'center' });
   // bannière
   bannerShape(c, 70, 262, 940, 62, theme);
-  const label = (spec.off === 0 ? 'PRONOSTICS DU JOUR' : spec.off === 1 ? 'PRONOSTICS DE DEMAIN' : 'PRONOSTICS') + (spec.total > 1 ? '  ·  ' + spec.idx + '/' + spec.total : '');
+  const label = (spec.off === 0 ? 'PRONOSTICS DU JOUR' : spec.off === 1 ? 'PRONOSTICS DE DEMAIN' : 'PRONOSTICS') + (spec.items.some(it => it.res) ? '  ·  RÉSULTATS' : '') + (spec.total > 1 ? '  ·  ' + spec.idx + '/' + spec.total : '');
   tx(c, label, 540, 294, { s: 34, c: '#fff', w: 800, i: true, a: 'center' });
   tx(c, 'TOUS LES MATCHS  ·  TOUS LES CHAMPIONNATS  ·  UNE SEULE PASSION', 540, 348, { s: 15, c: '#34415f', w: 700, a: 'center' });
   // lignes de matchs
   const top = 372, bottom = 1222, gap = 9, n = spec.items.length, rowH = clampN((bottom - top - gap * (n - 1)) / n, 134, 166);
+  const mw = (t, sz, w) => { c.font = (w || 600) + ' ' + sz + 'px ' + FONT; return c.measureText(t).width; };
   let dagger = false;
   spec.items.forEach((it, i) => {
-    const y = top + i * (rowH + gap), cy = y + (rowH - 36) / 2, p = it.pred;
-    rr(c, 24, y, 1032, rowH, 18); c.fillStyle = '#f4f7fd'; c.fill(); c.strokeStyle = '#d6dff2'; c.lineWidth = 1.5; c.stroke();
+    const y = top + i * (rowH + gap), cy = y + (rowH - 36) / 2, p = it.pred, res = it.res, live = it.live;
+    const hit = res ? hitOf(p, res) : null, ci = confInfo(p.conf), hn = shortName(it.f.home), an = shortName(it.f.away);
+    rr(c, 24, y, 1032, rowH, 18); c.fillStyle = '#f4f7fd'; c.fill(); c.strokeStyle = hit ? (hit.main ? '#8fd3ac' : '#efb0aa') : '#d6dff2'; c.lineWidth = hit ? 2.5 : 1.5; c.stroke();
     rr(c, 40, cy - 22, 98, 44, 12); c.fillStyle = '#1d1550'; c.fill(); tx(c, hhmm(it.f.utc), 89, cy, { s: 25, c: '#fff', w: 800, a: 'center' });
+    if (res) tx(c, 'FINAL  ' + res.hg + ' - ' + res.ag, 89, cy + 38, { s: 15, c: '#0f1b45', w: 800, a: 'center' });
+    else if (live) tx(c, '● ' + live.hg + ' - ' + live.ag, 89, cy + 38, { s: 15, c: '#c0392b', w: 800, a: 'center' });
     const L = tl[i];
-    [[it.f.home, L[0], 150, 220, 124], [it.f.away, L[1], 398, 468, 142]].forEach(([name, im, lx, nx, mw]) => {
+    [[it.f.home, hn, L[0], 150, 220, 124], [it.f.away, an, L[1], 398, 468, 142]].forEach(([full, name, im, lx, nx, maxW]) => {
       if (im) drawContain(c, im, lx, cy - 31, 62, 62); else badge(c, name, lx, cy - 31, 62);
-      const nl = nameLines(c, name, mw, 22), lh2 = nl.s * 1.12;
+      const nl = nameLines(c, name, maxW, 22), lh2 = nl.s * 1.12;
       nl.lines.forEach((l, k) => tx(c, l, nx, cy - (nl.lines.length - 1) * lh2 / 2 + k * lh2, { s: nl.s, w: 700 }));
     });
     c.fillStyle = '#e4ecff'; c.beginPath(); c.arc(372, cy, 17, 0, 7); c.fill(); tx(c, 'VS', 372, cy, { s: 13, c: '#2d5bff', w: 800, a: 'center' });
-    // pronostic principal
-    tx(c, 'PRONOSTIC PRINCIPAL', 696, cy - 35, { s: 11, c: '#1a8a4f', w: 800, a: 'center' });
-    const gg = c.createLinearGradient(0, cy - 24, 0, cy + 22); gg.addColorStop(0, '#2fb86a'); gg.addColorStop(1, '#16864a');
-    rr(c, 620, cy - 24, 152, 46, 12); c.fillStyle = gg; c.fill(); tx(c, p.pick.code, 696, cy - 1, { s: 30, c: '#fff', w: 800, a: 'center' });
-    const sub = '(' + p.pick.sub + ')'; tx(c, sub, 696, cy + 37, { s: fitSize(c, sub, 150, 12, 9, 700), c: '#1a8a4f', w: 700, a: 'center' });
+    // pronostic principal (n'importe quel marché) : vert, ou rouge si perdu
+    const good = !hit || hit.main;
+    tx(c, 'PRONOSTIC PRINCIPAL', 696, cy - 35, { s: 11, c: good ? '#1a8a4f' : '#b3261a', w: 800, a: 'center' });
+    const gg = c.createLinearGradient(0, cy - 24, 0, cy + 22); gg.addColorStop(0, good ? '#2fb86a' : '#e7685a'); gg.addColorStop(1, good ? '#16864a' : '#b3261a');
+    rr(c, 620, cy - 24, 152, 46, 12); c.fillStyle = gg; c.fill();
+    const code = String(p.pick.code), codeS = fitSize(c, code, 136, code.length > 4 ? 24 : 30, 16, 800);
+    tx(c, code, 696, cy - 1, { s: codeS, c: '#fff', w: 800, a: 'center' });
+    const sub = '(' + dispText(p.pick.subT || p.pick.sub, it.f, hn, an) + ')'; tx(c, sub, 696, cy + 37, { s: fitSize(c, sub, 150, 12, 8, 700), c: good ? '#1a8a4f' : '#b3261a', w: 700, a: 'center' });
     // score probable
     tx(c, 'SCORE PROBABLE', 840, cy - 35, { s: 11, c: '#0f1b45', w: 800, a: 'center' });
     rr(c, 784, cy - 24, 112, 46, 12); c.fillStyle = '#0f1b45'; c.fill(); tx(c, p.score.h + ' - ' + p.score.a, 840, cy - 1, { s: 28, c: '#fff', w: 800, a: 'center' });
-    tx(c, '≈ ' + pcc(p.score.p) + ' % de chances', 840, cy + 37, { s: 12, c: '#51618a', w: 600, a: 'center' });
-    // probabilité + confiance
+    if (hit && hit.score) tx(c, '✓ Score exact', 840, cy + 37, { s: 13, c: '#1a8a4f', w: 800, a: 'center' });
+    else tx(c, '≈ ' + pcc(p.score.p) + ' % de chances', 840, cy + 37, { s: 12, c: '#51618a', w: 600, a: 'center' });
+    // probabilité + confiance (rouge = faible, jaune = moyenne, vert = forte)
     tx(c, 'PROBABILITÉ', 978, cy - 35, { s: 11, c: '#0f1b45', w: 800, a: 'center' });
     tx(c, pcc(p.pick.p) + ' %', 978, cy - 8, { s: 28, c: '#0f1b45', w: 800, a: 'center' });
-    for (let b = 0; b < 5; b++) { rr(c, 923 + b * 23, cy + 8, 18, 12, 4); c.fillStyle = b < p.conf.bars ? '#27a85f' : '#cfd9ec'; c.fill(); }
+    for (let b = 0; b < 5; b++) { rr(c, 923 + b * 23, cy + 8, 18, 12, 4); c.fillStyle = b < ci.bars ? ci.color : '#cfd9ec'; c.fill(); }
     const dg = p.cross || p.limited; if (dg) dagger = true;
-    tx(c, 'Confiance : ' + p.conf.label + (dg ? ' †' : ''), 978, cy + 37, { s: 12, c: '#34415f', w: 700, a: 'center' });
-    // autres marchés
+    tx(c, 'Confiance : ' + ci.label + (dg ? ' †' : ''), 978, cy + 37, { s: 12, c: ci.text, w: 800, a: 'center' });
+    // autres marchés, avec ✓ / ✗ une fois le match terminé
     const sy = y + rowH - 34; rr(c, 34, sy, 1012, 28, 10); c.fillStyle = '#e8eefb'; c.fill();
     tx(c, 'AUTRES MARCHÉS :', 48, sy + 14, { s: 12, c: '#2d5bff', w: 800 });
-    const txt = p.others.map(o => '•  ' + o.label + ' ' + pcc(o.p) + ' %');
-    if (txt.length) { const all = txt.join('      '), fs = fitSize(c, all, 830, 14, 10, 600); tx(c, all, 196, sy + 14, { s: fs, c: '#2b3a63', w: 600 }); }
-    else tx(c, 'Aucun autre marché assez probable pour ce match', 196, sy + 14, { s: 13, c: '#51618a', w: 600 });
+    const segs = p.others.map((o, k) => ({ t: '•  ' + dispText(o.labelT || o.label, it.f, hn, an) + ' ' + pcc(o.p) + ' %', ok: hit ? hit.others[k] : null }));
+    if (segs.length) {
+      const maxW = hit ? 735 : 830, gapX = 26;
+      let fs = 14; const total = z => segs.reduce((a, g) => a + mw((g.ok === null ? '' : '✓ ') + g.t, z), 0) + gapX * (segs.length - 1);
+      while (fs > 10 && total(fs) > maxW) fs--;
+      let x = 196;
+      segs.forEach(g => {
+        if (g.ok !== null) { const m = g.ok ? '✓ ' : '✗ '; tx(c, m, x, sy + 14, { s: fs, c: g.ok ? '#1a8a4f' : '#c0392b', w: 800 }); x += mw(m, fs, 800); }
+        tx(c, g.t, x, sy + 14, { s: fs, c: '#2b3a63', w: 600 }); x += mw(g.t, fs) + gapX;
+      });
+    } else tx(c, 'Aucun autre marché assez probable pour ce match', 196, sy + 14, { s: 13, c: '#51618a', w: 600 });
+    if (hit) { rr(c, 944, sy + 3, 94, 22, 11); c.fillStyle = hit.main ? '#1f9d57' : '#d0382b'; c.fill(); tx(c, hit.main ? 'GAGNÉ' : 'PERDU', 991, sy + 14, { s: 14, c: '#fff', w: 800, a: 'center' }); }
   });
   // pied de page
   const fy = 1252;
@@ -916,10 +994,14 @@ async function drawPoster(canvas, spec, S) {
 }
 
 // ---------- Boutons des affiches ----------
+const tmpPrev = {}, tries = {};
 async function previewOf(spec) {
   if (previews[spec.key]) return previews[spec.key];
   const cv = document.createElement('canvas'); await drawPoster(cv, spec, 1);
-  const url = cv.toDataURL('image/jpeg', 0.9); cv.width = cv.height = 1; previews[spec.key] = url; return url;
+  const url = cv.toDataURL('image/jpeg', 0.9), miss = cv._missing || 0; cv.width = cv.height = 1;
+  tries[spec.key] = (tries[spec.key] || 0) + 1;
+  if (miss && tries[spec.key] < 3) { tmpPrev[spec.key] = url; tmpPrev[spec.key + ':t'] = Date.now(); setTimeout(() => { if (!$('prediction').classList.contains('hidden')) renderPrediction(); }, 6000); return url; }
+  delete tmpPrev[spec.key]; previews[spec.key] = url; return url;
 }
 function posterName(spec, ext) { return 'MDZEZAYE_' + spec.code + '_' + spec.date + '_affiche' + spec.idx + 'sur' + spec.total + '.' + ext; }
 async function posterBlob(spec, type) {
@@ -973,8 +1055,8 @@ function renderPrediction() {
     if (!curSpecs.length) h += '<div class="empty">Aucune affiche à afficher pour ces filtres' + ((predInfo.days || []).every(d => !d.items.length) ? ' : aucun pronostic n’a pu être calculé avec les données disponibles.' : '.') + '</div>';
     curSpecs.forEach((s, i) => {
       h += '<div class="card pcard"><h3 class="ptitle">' + esc(s.comp) + ' · ' + esc(s.off === 0 ? 'Aujourd’hui' : s.off === 1 ? 'Demain' : s.date) + ' · affiche ' + s.idx + '/' + s.total + '</h3>' +
-        '<img class="pimg" data-key="' + esc(s.key) + '" alt="Affiche ' + esc(s.comp) + '" ' + (previews[s.key] ? 'src="' + previews[s.key] + '"' : '') + '>' +
-        '<div class="pload" ' + (previews[s.key] ? 'style="display:none"' : '') + '>Création de l’affiche…</div>' +
+        '<img class="pimg" data-key="' + esc(s.key) + '" alt="Affiche ' + esc(s.comp) + '" ' + ((previews[s.key] || tmpPrev[s.key]) ? 'src="' + (previews[s.key] || tmpPrev[s.key]) + '"' : '') + '>' +
+        '<div class="pload" ' + ((previews[s.key] || tmpPrev[s.key]) ? 'style="display:none"' : '') + '>Création de l’affiche…</div>' +
         '<div class="pbtns"><button class="btn primary" onclick="dlPoster(\'png\',' + i + ')">📥 Télécharger en PNG</button><button class="btn primary" onclick="dlPoster(\'jpg\',' + i + ')">📥 Télécharger en JPG</button>' +
         '<button class="btn" onclick="sharePoster(' + i + ')">📤 Partager l’image</button><button class="btn" onclick="openPreview(' + i + ')">👁️ Prévisualiser</button><button class="btn" onclick="generatePred(true)">🔄 Actualiser les pronostics</button></div></div>';
     });
@@ -986,7 +1068,7 @@ function renderPrediction() {
   // les affiches se créent une par une (économise la mémoire du téléphone)
   (async () => {
     for (const s of curSpecs) {
-      if (previews[s.key]) continue;
+      if (previews[s.key] || (tmpPrev[s.key] && tries[s.key] >= 1 && Date.now() - (tmpPrev[s.key + ':t'] || 0) < 5000)) continue;
       try { const url = await previewOf(s), el = document.querySelector('img.pimg[data-key="' + s.key.replace(/"/g, '') + '"]'); if (el) { el.src = url; if (el.nextElementSibling) el.nextElementSibling.style.display = 'none'; } }
       catch (e) { const el = document.querySelector('img.pimg[data-key="' + s.key + '"]'); if (el && el.nextElementSibling) el.nextElementSibling.textContent = 'Création impossible : ' + e.message; }
     }
@@ -1003,9 +1085,9 @@ function renderHistory() {
     let m = 0, s = 0; done.forEach(h => { const r = hitOf(h.pred, h.res); if (r.main) m++; if (r.score) s++; });
     tot += done.length; ok += m; sc += s;
     const rows = list.map(h => {
-      if (!h.res) return '<div class="hint">' + esc(h.home) + ' — ' + esc(h.away) + ' : ' + esc(h.pred.pick.code) + ' · ' + h.pred.score.h + '-' + h.pred.score.a + ' (' + pcc(h.pred.pick.p) + ' %) · en attente du résultat</div>';
+      if (!h.res) return '<div class="hint">' + esc(h.home) + ' — ' + esc(h.away) + ' : ' + esc(h.pred.pick.code + ' – ' + h.pred.pick.sub) + ' · ' + h.pred.score.h + '-' + h.pred.score.a + ' (' + pcc(h.pred.pick.p) + ' %) · en attente du résultat</div>';
       const r = hitOf(h.pred, h.res);
-      return '<div class="hint">' + esc(h.home) + ' ' + h.res.hg + '-' + h.res.ag + ' ' + esc(h.away) + ' : pronostic ' + esc(h.pred.pick.code) + ' ' + (r.main ? '✓' : '✗') + ' · score ' + h.pred.score.h + '-' + h.pred.score.a + ' ' + (r.score ? '✓' : '✗') +
+      return '<div class="hint">' + esc(h.home) + ' ' + h.res.hg + '-' + h.res.ag + ' ' + esc(h.away) + ' : pronostic ' + esc(h.pred.pick.code + ' – ' + h.pred.pick.sub) + ' ' + (r.main ? '✓' : '✗') + ' · score ' + h.pred.score.h + '-' + h.pred.score.a + ' ' + (r.score ? '✓' : '✗') +
         (h.pred.others.length ? ' · ' + h.pred.others.map((o, k) => esc(o.label) + ' ' + (r.others[k] ? '✓' : '✗')).join(' · ') : '') + '</div>';
     }).join('');
     return '<details style="margin:8px 0"><summary><b>' + esc(d) + '</b> · ' + list.length + ' pronostic(s) · ' + done.length + ' terminé(s)' + (done.length ? ' · principal ' + m + '/' + done.length + ' · score exact ' + s + '/' + done.length : '') + '</summary><div style="margin-top:6px"><button class="btn" onclick="viewHist(\'' + esc(d) + '\')">🖼️ Voir les affiches de ce jour</button></div><div style="margin-top:6px">' + rows + '</div></details>';

@@ -628,7 +628,8 @@ function normalizeEspnEvent(ev, league) {
   const team = c => ({
     id: String(c.team.id || ""),
     name: c.team.displayName || c.team.shortDisplayName || c.team.name || "",
-    crest: c.team.logo || ""
+    crest: c.team.logo || (c.team.logos && c.team.logos[0] && c.team.logos[0].href) ||
+      (c.team.id ? "https://a.espncdn.com/i/teamlogos/soccer/500/" + c.team.id + ".png" : "")
   });
 
   return {
