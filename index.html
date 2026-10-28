@@ -294,7 +294,7 @@ function statsPanel(f) {
 }
 
 const mstats = {};
-const MROWS = [['Possession (%)', 'possession'], ['Tirs', 'shots'], ['Tirs cadrés', 'shotsOnTarget'], ['Corners', 'corners'], ['Fautes', 'fouls'],
+const MROWS = [['xG (buts attendus)', 'xg'], ['Possession (%)', 'possession'], ['Tirs', 'shots'], ['Tirs cadrés', 'shotsOnTarget'], ['Corners', 'corners'], ['Fautes', 'fouls'],
   ['Cartons jaunes', 'yellow'], ['Cartons rouges', 'red'], ['Hors-jeu', 'offsides'], ['Arrêts', 'saves'], ['Touches', 'throwIns']];
 async function loadMatchStats(f, force) {
   if (!f.eventId) return;
@@ -306,6 +306,19 @@ async function loadMatchStats(f, force) {
   catch (e) { mstats[f.id] = { error: e.message }; }
   renderAll();
 }
+function modelGoalsHtml(f, d) {
+  if (d.home.xg != null && d.away.xg != null) return '';
+  const s = statsMap[f.id]; if (!s || s.error) return '';
+  const m = modelInputs(s); if (m.err) return '';
+  const live = LIVE.has(f.status), min = parseInt(String(f.clock || '').replace(/[^0-9]/g, ' ').trim().split(' ')[0], 10);
+  let h = '<div class="sh" style="margin-top:10px">Buts attendus (modèle)<small>estimation, pas un xG mesuré</small></div>' +
+    '<div class="sr"><b>' + f1(m.lh) + '</b><div class="lb">Avant le match</div><b class="r">' + f1(m.la) + '</b></div>';
+  if (live && Number.isFinite(min) && min > 0 && min <= 120) {
+    const rem = Math.max(0, 90 - min) / 90, gh = f.hg == null ? 0 : f.hg, ga = f.ag == null ? 0 : f.ag;
+    h += '<div class="sr"><b>' + f1(gh + m.lh * rem) + '</b><div class="lb">Score final attendu (à la ' + min + '’)</div><b class="r">' + f1(ga + m.la * rem) + '</b></div>';
+  }
+  return h + '<div class="hint" style="margin-top:4px">Calculés à partir des moyennes de buts de la saison. La source gratuite (ESPN) ne fournit pas le vrai xG de ce match.</div>';
+}
 function matchStatsHtml(f) {
   const live = LIVE.has(f.status), m = mstats[f.id];
   const head = '<div class="sh">Statistiques du match<small>' + (live ? 'en direct · actualisées toutes les 45 s' : 'match terminé') + '</small></div>';
@@ -316,12 +329,12 @@ function matchStatsHtml(f) {
   MROWS.forEach(r => {
     const h = d.home[r[1]], a = d.away[r[1]];
     if (h == null || a == null) { missing.push(r[0]); return; }
-    const t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50, fmt = v => Number.isInteger(v) ? v : f1(v);
+    const t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50, fmt = r[1] === 'xg' ? (v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',')) : (v => Number.isInteger(v) ? v : f1(v));
     shown.push('<div class="sr"><b>' + fmt(h) + '</b><div class="lb">' + r[0] + '<div class="bar"><span style="width:' + sh + '%"></span></div></div><b class="r">' + fmt(a) + '</b></div>');
   });
   if (!shown.length) return head + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : '') + '.</div>';
   return head + '<div class="hint" style="margin-bottom:4px">' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)</div>' + shown.join('') +
-    (missing.length ? '<div class="hint" style="margin-top:6px">Non fournies par la source : ' + missing.map(esc).join(', ') + '.</div>' : '') +
+    modelGoalsHtml(f, d) + (missing.length ? '<div class="hint" style="margin-top:6px">Non fournies par la source : ' + missing.map(esc).join(', ') + '.</div>' : '') +
     (live ? '<div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Actualiser maintenant</button></div>' : '');
 }
 setInterval(() => curDay().fixtures.filter(f => LIVE.has(f.status) && openStats.has(f.id)).forEach(f => loadMatchStats(f, true)), 45000);

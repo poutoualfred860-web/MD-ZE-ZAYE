@@ -705,6 +705,7 @@ const ESPN_SUMMARY_HOSTS = [
 const summaryCache = new Map();
 
 const STAT_KEYS = [
+  ["xg", /^xg$|expectedgoals/],
   ["shotsOnTarget", /shotsontarget|ontarget/],
   ["shots", /^(totalshots|shots)$/],
   ["fouls", /foul/],
