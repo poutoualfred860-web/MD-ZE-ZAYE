@@ -650,7 +650,7 @@ function normalizeEspnEvent(ev, league) {
 async function espnLeagueDay(league, ymd) {
   const key = league.slug + ":" + ymd;
   const hit = dayCache.get(key);
-  if (hit && Date.now() - hit.time < 60 * 1000) return hit.events;
+  if (hit && Date.now() - hit.time < hit.ttl) return hit.events;
 
   const response = await fetch(ESPN_BASE + "/" + league.slug + "/scoreboard?dates=" + ymd + "&limit=200", {
     headers: { Accept: "application/json" },
@@ -661,7 +661,7 @@ async function espnLeagueDay(league, ymd) {
   const logo = data.leagues && data.leagues[0] && data.leagues[0].logos && data.leagues[0].logos[0] && data.leagues[0].logos[0].href;
   if (logo) leagueLogos[league.code] = logo;
   const events = (data.events || []).map(ev => normalizeEspnEvent(ev, league)).filter(Boolean);
-  dayCache.set(key, { time: Date.now(), events });
+  dayCache.set(key, { time: Date.now(), ttl: events.some(e => e.status === "IN_PLAY" || e.status === "PAUSED") ? 20 * 1000 : 60 * 1000, events });
   return events;
 }
 

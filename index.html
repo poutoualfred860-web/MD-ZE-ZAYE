@@ -250,11 +250,64 @@ async function loadTab(force) {
   const date = dateOf(tab), cur = days[date];
   if (cur && (cur.state === 'loading' || (cur.state === 'ok' && !force))) { renderAll(); fetchStats(candidates()); return; }
   days[date] = { state: 'loading', fixtures: [], diag: [] }; renderAll();
-  try { const r = await fetchDay(date); days[date] = { state: 'ok', fixtures: r.list, diag: r.diag }; }
+  try { const r = await fetchDay(date); days[date] = { state: 'ok', fixtures: r.list, diag: r.diag }; lastLoad[date] = Date.now(); lastUpdate = Date.now(); }
   catch (e) { days[date] = { state: 'error', fixtures: [], diag: [], error: e.message }; }
-  renderAll(); fetchStats(candidates());
+  renderAll(); fetchStats(candidates()); setTimeout(() => fetchStats(curDay().fixtures, { quiet: true, noBox: true }), 1500);
 }
 function setTab(t) { tab = t; loadTab(false); }
+
+// ---------- Actualisation automatique ----------
+const lastLoad = {}; let lastUpdate = 0, refreshing = false, covOpen = false;
+const fxSig = list => list.map(f => f.id + f.status + f.hg + ':' + f.ag + (f.clock || '')).join('|');
+async function silentRefresh(force) {
+  if (refreshing || document.hidden) return;
+  const date = dateOf(tab), cur = days[date];
+  if (!cur || cur.state !== 'ok') return;
+  const now = Date.now(), fx = cur.fixtures;
+  const live = fx.some(f => LIVE.has(f.status));
+  const soon = fx.some(f => !DONE.has(f.status) && Math.abs(Date.parse(f.utc) - now) < 3 * 3600 * 1000);
+  const every = live ? 20000 : soon ? 60000 : 300000;
+  if (!force && now - (lastLoad[date] || 0) < every - 1500) return;
+  refreshing = true;
+  try {
+    const r = await fetchDay(date), before = fxSig(fx);
+    if (r.list.length || !fx.length) {
+      days[date] = { state: 'ok', fixtures: r.list, diag: r.diag };
+      const nb = r.list.filter(f => f.eventId && (LIVE.has(f.status) || f.status === 'FINISHED') && (openStats.has(f.id) || prefs.leagues.includes(f.code)));
+      nb.filter(f => LIVE.has(f.status) || (fx.find(o => o.id === f.id) || {}).status !== f.status).forEach(f => loadMatchStats(f, true));
+      if (fxSig(r.list) !== before) renderAll();
+      fetchStats(candidates()); fetchStats(r.list, { quiet: true, noBox: true });
+    }
+    lastLoad[date] = Date.now(); lastUpdate = Date.now(); renderFixtures();
+  } catch (e) { /* on réessaiera au prochain passage */ }
+  refreshing = false;
+}
+setInterval(() => silentRefresh(false), 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) silentRefresh(true); });
+window.addEventListener('online', () => silentRefresh(true));
+
+// ---------- Pourquoi un match n'a pas de statistiques ----------
+function teamStatsState(f) {
+  if (!covered(f.code)) return { ok: false, text: 'Compétition non couverte : aucune source gratuite de statistiques d’équipes.' };
+  const s = statsMap[f.id];
+  if (!s) return { ok: null, text: 'Chargement…' };
+  if (s.error) return { ok: false, text: s.error };
+  for (const [side, name] of [[s.home, f.home], [s.away, f.away]]) {
+    if (!side || !side.matched) return { ok: false, text: '« ' + name + ' » introuvable dans les fichiers de statistiques et dans les matchs récents d’ESPN.' };
+    if (!side.all) return { ok: false, text: 'Aucun match joué cette saison par « ' + name + ' » dans les sources.' };
+  }
+  const n = Math.min(s.home.all.n, s.away.all.n), limited = [s.home, s.away].some(x => x.src === 'espn');
+  return n >= (limited ? 3 : 5) ? { ok: true, n } : { ok: false, text: 'Pas assez de matchs joués (' + n + ' pour la moins avancée des deux équipes, minimum ' + (limited ? 3 : 5) + ').' };
+}
+function coverageHtml(list) {
+  if (!list.length) return '';
+  const st = list.map(f => ({ f, s: teamStatsState(f) })), ok = st.filter(x => x.s.ok === true).length, wait = st.filter(x => x.s.ok === null).length, bad = st.filter(x => x.s.ok === false);
+  const groups = {}; bad.forEach(x => (groups[x.s.text] = groups[x.s.text] || []).push(x.f));
+  let h = '<details class="card" ' + (covOpen ? 'open ' : '') + 'ontoggle="covOpen=this.open"><summary style="font-weight:700">Statistiques d’équipes : ' + ok + ' match(s) sur ' + list.length + (wait ? ' · ' + wait + ' en chargement' : '') + '</summary>';
+  const entries = Object.entries(groups);
+  h += entries.length ? entries.map(([text, fs]) => '<div class="hint" style="margin-top:10px"><b>' + esc(text) + '</b><br>' + fs.map(f => esc(f.home) + ' — ' + esc(f.away)).join('<br>') + '</div>').join('') : (wait ? '' : '<div class="hint" style="margin-top:8px">Tous les matchs ont leurs statistiques d’équipes.</div>');
+  return h + '<div class="hint" style="margin-top:12px">Pourquoi certains matchs n’en ont pas ? Les statistiques viennent de fichiers publics (football-data.co.uk) et des matchs récents d’ESPN : certaines compétitions ou équipes n’y figurent pas, ou n’ont pas encore assez de matchs joués. Les statistiques d’un match en cours ou terminé viennent d’ESPN, qui ne détaille pas tous les matchs (championnats secondaires, coupes).</div></details>';
+}
 
 // ---------- Matchs du jour ----------
 function tabLabel(t) {
@@ -332,7 +385,7 @@ function matchStatsHtml(f) {
     const t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50, fmt = r[1] === 'xg' ? (v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',')) : (v => Number.isInteger(v) ? v : f1(v));
     shown.push('<div class="sr"><b>' + fmt(h) + '</b><div class="lb">' + r[0] + '<div class="bar"><span style="width:' + sh + '%"></span></div></div><b class="r">' + fmt(a) + '</b></div>');
   });
-  if (!shown.length) return head + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : '') + '.</div>';
+  if (!shown.length) return head + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : ' (ESPN ne détaille pas tous les matchs : championnats secondaires, coupes…)') + '.</div>';
   return head + '<div class="hint" style="margin-bottom:4px">' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)</div>' + shown.join('') +
     modelGoalsHtml(f, d) + (missing.length ? '<div class="hint" style="margin-top:6px">Non fournies par la source : ' + missing.map(esc).join(', ') + '.</div>' : '') +
     (live ? '<div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Actualiser maintenant</button></div>' : '');
@@ -350,12 +403,13 @@ function renderFixtures() {
   $('dayTabs').innerHTML = ['live', -1, 0, 1, 2, 3, 4, 5].map(t => '<button class="pill ' + (t === 'live' ? 'live ' : '') + (t === tab ? 'on' : '') + '" onclick="setTab(' + (t === 'live' ? "'live'" : t) + ')">' +
     (t === 'live' ? '<span class="dot"></span>' : '') + esc(tabLabel(t)) + '</button>').join('');
   const day = curDay(), list = dayFixtures();
-  let h = '';
+  let h = day.state === 'ok' && lastUpdate ? '<div class="hint" style="text-align:right;margin:-4px 0 6px">Actualisation automatique · mis à jour à ' + hhmm(new Date(lastUpdate).toISOString()) + '</div>' : '';
+  if (day.state === 'ok') h += coverageHtml(list);
   if (day.state === 'loading' || day.state === 'idle') h = '<div class="empty">Chargement des matchs… Le serveur gratuit peut mettre jusqu’à 30 secondes à se réveiller.</div>';
   else if (day.state === 'error') h = '<div class="warning">Impossible de charger les matchs : ' + esc(day.error) + '</div><button class="btn primary" onclick="loadTab(true)">Réessayer</button>';
-  else if (!list.length) h = '<div class="empty">' + (tab === 'live' ? 'Aucun match en direct pour le moment.' : 'Aucun match trouvé pour cette date.') + '</div>' +
+  else if (!list.length) h += '<div class="empty">' + (tab === 'live' ? 'Aucun match en direct pour le moment.' : 'Aucun match trouvé pour cette date.') + '</div>' +
     '<div class="card"><div class="hint"><b>Détails techniques</b><br>' + day.diag.map(esc).join('<br>') + '</div><div style="margin-top:10px"><button class="btn" onclick="loadTab(true)">Actualiser</button></div></div>';
-  else h = groupByComp(list).map(g => {
+  else h += groupByComp(list).map(g => {
     const closed = closedGroups.has(g.code || g.name), ok = covered(g.code);
     return '<div class="gh"><input type="checkbox" ' + (ok ? '' : 'disabled title="Statistiques indisponibles" ') + (prefs.leagues.includes(g.code) ? 'checked ' : '') +
       'onchange="toggleLeague(\'' + esc(g.code) + '\',this.checked)" aria-label="Sélectionner ' + esc(g.name) + '"><span class="fl">' + esc(g.flag) + '</span><span class="gt">' + esc(g.name) +
@@ -377,11 +431,12 @@ function setIncDone(v) { prefs.incDone = v; savePrefs(); renderAll(); fetchStats
 
 function candidates() { return dayFixtures().filter(f => prefs.leagues.includes(f.code) && (!DONE.has(f.status) || (prefs.incDone && (f.status === 'FINISHED' || f.status === 'AWARDED')))); }
 
-async function fetchStats(list) {
-  list.filter(f => f.eventId && (f.status === 'FINISHED' || LIVE.has(f.status))).forEach(f => loadMatchStats(f, false));
+async function fetchStats(list, opt) {
+  opt = opt || {};
+  if (!opt.noBox) list.filter(f => f.eventId && (f.status === 'FINISHED' || LIVE.has(f.status))).forEach(f => loadMatchStats(f, false));
   const todo = list.filter(f => covered(f.code) && !(f.id in statsMap) && !statsPending.has(f.id));
   if (!todo.length) return;
-  todo.forEach(f => statsPending.add(f.id)); statsLoading = true; statsError = ''; renderAll();
+  todo.forEach(f => statsPending.add(f.id)); if (!opt.quiet) { statsLoading = true; statsError = ''; renderAll(); }
   try {
     for (let i = 0; i < todo.length; i += 30) {
       const chunk = todo.slice(i, i + 30);
@@ -391,8 +446,8 @@ async function fetchStats(list) {
       });
       chunk.forEach(f => { if (d.results && d.results[f.id]) statsMap[f.id] = d.results[f.id]; });
     }
-  } catch (e) { statsError = e.message; }
-  todo.forEach(f => statsPending.delete(f.id)); statsLoading = statsPending.size > 0; renderAll();
+  } catch (e) { if (!opt.quiet) statsError = e.message; }
+  todo.forEach(f => statsPending.delete(f.id)); if (!opt.quiet) statsLoading = statsPending.size > 0; renderAll();
 }
 
 // ---------- Calculs ----------
@@ -803,11 +858,11 @@ async function updateResults(force) {
     if (f && f.status === 'FINISHED' && f.hg != null && f.ag != null) { h.res = { hg: f.hg, ag: f.ag }; changed = true; }
   });
   if (changed) saveHist();
-  if (dates.length || changed) { predInfo.days = (predInfo.days || []).map(d => buildDay(d.date)); renderPrediction(); renderHistory(); }
+  if (dates.length || changed) { predInfo.days = (predInfo.days || []).map(d => buildDay(d.date)); if (!$('prediction').classList.contains('hidden')) renderPrediction(); renderHistory(); }
 }
 // les résultats et les scores en direct se mettent à jour tout seuls pendant que la rubrique est ouverte
 setInterval(() => {
-  if (predState !== 'ok' || $('prediction').classList.contains('hidden') || document.hidden) return;
+  if (predState !== 'ok' || document.hidden) return;
   const live = (predInfo.days || []).some(d => d.items.some(it => it.live));
   const pend = Object.values(hist).some(h => !h.res && h.date <= todayISO() && Date.parse(h.utc) < Date.now());
   if (live || pend) updateResults(true);
