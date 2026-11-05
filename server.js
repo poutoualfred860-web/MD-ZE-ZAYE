@@ -879,6 +879,180 @@ function espnSide(teams, id, requested, code) {
 }
 
 // CSV d'abord ; si une équipe est introuvable (ou compétition non couverte), moyennes ESPN de la compétition
+// ===================================================================
+// Équipes absentes des fichiers de statistiques détaillées : on récupère au moins leurs BUTS
+// (suffisant pour calculer les pronostics 1X2, double chance, plus/moins de buts, score probable)
+// ===================================================================
+const GOALS_CSV = ["DEN", "SWE", "NOR", "FIN", "POL", "AUT", "SWZ", "ROU", "RUS", "IRL", "USA", "BRA", "ARG", "JPN", "CHN", "MEX"];
+const GOALS_CSV_LABEL = { DEN: "Danemark", SWE: "Suède", NOR: "Norvège", FIN: "Finlande", POL: "Pologne", AUT: "Autriche", SWZ: "Suisse", ROU: "Roumanie", RUS: "Russie", IRL: "Irlande", USA: "États-Unis", BRA: "Brésil", ARG: "Argentine", JPN: "Japon", CHN: "Chine", MEX: "Mexique" };
+const goalsLeagueCache = new Map();
+const round2 = v => Math.round(v * 100) / 100;
+
+const newGTeam = (name, id) => ({ id: String(id || ""), name, all: { n: 0, gf: 0, ga: 0 }, home: { n: 0, gf: 0, ga: 0 }, away: { n: 0, gf: 0, ga: 0 }, recent: [] });
+function addGoals(teams, key, name, id, side, gf, ga, rec) {
+  const t = teams[key] || (teams[key] = newGTeam(name, id));
+  [t.all, t[side]].forEach(x => { x.n++; x.gf += gf; x.ga += ga; });
+  t.recent.push(rec);
+}
+const gAvg = x => (x && x.n ? { n: x.n, goalsFor: round2(x.gf / x.n), goalsAgainst: round2(x.ga / x.n) } : null);
+function poolAverages(events) {
+  const n = events.length;
+  return n ? { n, homeGoals: round2(events.reduce((a, e) => a + e.hg, 0) / n), awayGoals: round2(events.reduce((a, e) => a + e.ag, 0) / n) } : null;
+}
+function goalsSide(requested, t, lg, src, label) {
+  return {
+    requested, matched: t.name, league: label, leagueLabel: label, season: "saison en cours", src, goalsOnly: true,
+    all: gAvg(t.all), home: gAvg(t.home), away: gAvg(t.away), leagueAverages: lg,
+    recent: t.recent.slice().sort((a, b) => a.d.localeCompare(b.d)).slice(-5).map(x => ({ date: x.d, home: x.home, away: x.away, hg: x.hg, ag: x.ag }))
+  };
+}
+
+async function fetchTextFirst(urls) {
+  let last = new Error("Source indisponible.");
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!response.ok) { last = new Error("HTTP " + response.status); continue; }
+      const buffer = await response.arrayBuffer();
+      try { return new TextDecoder("windows-1252").decode(buffer); } catch (e) { return new TextDecoder("utf-8").decode(buffer); }
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+
+// 1) Fichiers « autres championnats » de football-data.co.uk (Danemark, Suède, Norvège, Finlande, Pologne, Autriche, Suisse…)
+function getGoalsLeague(code) {
+  const hit = goalsLeagueCache.get(code);
+  if (hit && Date.now() - hit.time < 6 * 3600 * 1000) return hit.promise;
+  const promise = (async () => {
+    const rows = parseCsv(await fetchTextFirst(CSV_HOSTS.map(h => h + "/new/" + code + ".csv")));
+    const head = rows[0].map(x => x.trim()), ix = k => head.indexOf(k);
+    const iD = ix("Date"), iH = ix("Home"), iA = ix("Away"), iHG = ix("HG"), iAG = ix("AG");
+    if ([iD, iH, iA, iHG, iAG].some(i => i < 0)) throw new Error("Format inattendu");
+    const cutoff = Date.now() - 300 * 86400000, teams = {}, evs = [];
+    rows.slice(1).forEach(r => {
+      const d = csvDate(r[iD]);
+      if (!d || Date.parse(d) < cutoff || r[iHG] === "" || r[iAG] === "") return;
+      const hg = Number(r[iHG]), ag = Number(r[iAG]);
+      if (!Number.isFinite(hg) || !Number.isFinite(ag)) return;
+      const h = (r[iH] || "").trim(), a = (r[iA] || "").trim();
+      if (!h || !a) return;
+      const rec = { d, home: h, away: a, hg, ag };
+      addGoals(teams, h, h, "", "home", hg, ag, rec);
+      addGoals(teams, a, a, "", "away", ag, hg, rec);
+      evs.push(rec);
+    });
+    return { teams, league: poolAverages(evs) };
+  })();
+  goalsLeagueCache.set(code, { time: Date.now(), promise });
+  promise.catch(() => goalsLeagueCache.delete(code));
+  return promise;
+}
+async function goalsFromCsv(name) {
+  const loaded = await Promise.allSettled(GOALS_CSV.map(getGoalsLeague));
+  let best = null;
+  loaded.forEach((r, i) => {
+    if (r.status !== "fulfilled") return;
+    const m = matchTeamScore(name, Object.keys(r.value.teams));
+    if (m && m.score >= 0.75 && (!best || m.score > best.score)) best = { score: m.score, name: m.name, code: GOALS_CSV[i], data: r.value };
+  });
+  return best ? goalsSide(name, best.data.teams[best.name], best.data.league, "goals-csv", GOALS_CSV_LABEL[best.code]) : null;
+}
+
+// 2) Résultats de TOUTES les compétitions suivies par ESPN sur les 45 derniers jours (identification par numéro d'équipe)
+const allDayCache = new Map();
+let allTablePromise = null, allTableTime = 0;
+async function espnAllDay(ds) {
+  const hit = allDayCache.get(ds);
+  if (hit && Date.now() < hit.until) return hit.events;
+  const response = await fetch(ESPN_BASE + "/all/scoreboard?dates=" + ds + "&limit=1000", { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const data = await response.json();
+  const pseudo = { code: "ALL", name: "", flag: "" };
+  const events = (data.events || []).map(ev => normalizeEspnEvent(ev, pseudo))
+    .filter(e => e && e.status === "FINISHED" && e.homeScore !== null && e.awayScore !== null)
+    .map(e => ({ d: String(e.utcDate).slice(0, 10), home: e.home, away: e.away, hg: e.homeScore, ag: e.awayScore }));
+  const past = ds < ymd(new Date());
+  allDayCache.set(ds, { until: Date.now() + (past ? 12 * 3600 * 1000 : 5 * 60 * 1000), events });
+  return events;
+}
+function espnAllTable() {
+  if (allTablePromise && Date.now() - allTableTime < 20 * 60 * 1000) return allTablePromise;
+  allTableTime = Date.now();
+  allTablePromise = (async () => {
+    const days = Array.from({ length: 45 }, (_, i) => ymd(new Date(Date.now() - i * 86400000)));
+    const results = await mapPool(days, 6, d => espnAllDay(d));
+    const byId = {}, byName = {}, all = [];
+    let okDays = 0;
+    results.forEach(evs => {
+      if (!evs) return;
+      okDays++;
+      evs.forEach(e => {
+        const rec = { d: e.d, home: e.home.name, away: e.away.name, hg: e.hg, ag: e.ag };
+        const put = (team, side, gf, ga) => {
+          const key = team.id || team.name;
+          addGoals(byId, key, team.name, team.id, side, gf, ga, rec);
+          byName[teamTokens(team.name).join(" ")] = key;
+        };
+        put(e.home, "home", e.hg, e.ag); put(e.away, "away", e.ag, e.hg); all.push(e);
+      });
+    });
+    return { byId, byName, league: poolAverages(all), diag: { days: days.length, okDays, events: all.length } };
+  })();
+  allTablePromise.catch(() => { allTablePromise = null; });
+  return allTablePromise;
+}
+async function goalsFromEspnAll(name, id) {
+  const table = await espnAllTable();
+  const key = (id && table.byId[String(id)] ? String(id) : null) || table.byName[teamTokens(name).join(" ")];
+  const t = key ? table.byId[key] : null;
+  return { side: t ? goalsSide(name, t, table.league, "goals-espn", "ESPN, toutes compétitions") : null, diag: table.diag };
+}
+
+// 3) Résultats de la compétition elle-même (Ligue Europa…), sans exiger les statistiques détaillées
+const compGoalsCache = new Map();
+function competitionGoals(code) {
+  const hit = compGoalsCache.get(code);
+  if (hit && Date.now() - hit.time < 3 * 3600 * 1000) return hit.promise;
+  const league = ESPN_LEAGUES.find(l => l.code === code);
+  const promise = (async () => {
+    const evs = await competitionHistory(league), teams = {}, list = [];
+    evs.forEach(e => {
+      if (e.homeScore === null || e.awayScore === null) return;
+      const rec = { d: String(e.utcDate).slice(0, 10), home: e.home.name, away: e.away.name, hg: e.homeScore, ag: e.awayScore };
+      addGoals(teams, e.home.id || e.home.name, e.home.name, e.home.id, "home", e.homeScore, e.awayScore, rec);
+      addGoals(teams, e.away.id || e.away.name, e.away.name, e.away.id, "away", e.awayScore, e.homeScore, rec);
+      list.push({ hg: e.homeScore, ag: e.awayScore });
+    });
+    return { teams, league: poolAverages(list) };
+  })();
+  compGoalsCache.set(code, { time: Date.now(), promise });
+  promise.catch(() => compGoalsCache.delete(code));
+  return promise;
+}
+
+// Cherche une équipe dans les 3 sources de buts ; garde la meilleure (au moins 3 matchs), et note ce qui a été essayé
+async function goalsFallback(name, id, code) {
+  const tried = [], cands = [];
+  const consider = (side, label) => {
+    if (side && side.all && side.all.n >= 3) cands.push(side);
+    else tried.push(label + (side && side.all ? " : seulement " + side.all.n + " match(s)" : " : équipe absente"));
+  };
+  try { consider(await goalsFromCsv(name), "Fichiers autres championnats"); } catch (e) { tried.push("Fichiers autres championnats : " + e.message); }
+  if (!cands.some(c => c.all.n >= 6)) {
+    try { const r = await goalsFromEspnAll(name, id); consider(r.side, "ESPN toutes compétitions (" + r.diag.events + " matchs lus)"); }
+    catch (e) { tried.push("ESPN toutes compétitions : " + e.message); }
+  }
+  if (!cands.length && ESPN_LEAGUES.some(l => l.code === code)) {
+    try {
+      const d = await competitionGoals(code), t = d.teams[String(id)] || Object.values(d.teams).find(x => teamTokens(x.name).join(" ") === teamTokens(name).join(" "));
+      consider(t ? goalsSide(name, t, d.league, "goals-comp", "ESPN, " + code) : null, "ESPN compétition");
+    } catch (e) { tried.push("ESPN compétition : " + e.message); }
+  }
+  cands.sort((a, b) => b.all.n - a.all.n);
+  return { side: cands[0] || null, tried };
+}
+
 async function statsForItem(item) {
   const league = String(item.league || "").toUpperCase();
   const code = String(item.code || "").toUpperCase();
@@ -901,7 +1075,18 @@ async function statsForItem(item) {
         away: ok(base.away) ? base.away : espnSide(teams, item.awayId, away, code)
       });
     } catch (e) {
-      if (!payload) throw firstError || e;
+      if (!payload) payload = null;
+    }
+  }
+
+  // dernier recours : au moins les buts de l'équipe (autres championnats, ESPN toutes compétitions, compétition)
+  const sides = { home: [home, item.homeId], away: [away, item.awayId] };
+  if (!payload || !ok(payload.home) || !ok(payload.away)) {
+    payload = payload || { source: "buts", league: code, unavailable: ["Touches", "Tirs", "Fautes", "Corners", "Cartons"] };
+    for (const k of ["home", "away"]) {
+      if (ok(payload[k])) continue;
+      const found = await goalsFallback(sides[k][0], sides[k][1], code);
+      payload[k] = found.side || Object.assign({}, payload[k] || { requested: sides[k][0], matched: null }, { tried: found.tried });
     }
   }
   if (!payload) throw firstError || new Error("Statistiques indisponibles.");

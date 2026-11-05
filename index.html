@@ -167,7 +167,7 @@ const COMP = {
 };
 // Code de la compétition -> code utilisé par le serveur pour les statistiques (null = indisponible)
 const STATS_CODE = { PL: 'PL', ELC: 'ELC', PD: 'PD', SA: 'SA', BL1: 'BL1', FL1: 'FL1', PPL: 'PPL', DED: 'DED', T1: 'T1', B1: 'B1', SC0: 'SC0', G1: 'G1', CL: 'CL', EL: 'ANY', ECL: 'ANY', UNL: 'ESPN' };
-const covered = code => !!STATS_CODE[code];
+const covered = code => !!code;   // toutes les compétitions : au minimum les buts des équipes sont cherchés
 const DONE = new Set(['FINISHED', 'CANCELLED', 'POSTPONED', 'SUSPENDED', 'AWARDED']);
 const LIVE = new Set(['IN_PLAY', 'PAUSED']);
 
@@ -293,10 +293,10 @@ function teamStatsState(f) {
   if (!s) return { ok: null, text: 'Chargement…' };
   if (s.error) return { ok: false, text: s.error };
   for (const [side, name] of [[s.home, f.home], [s.away, f.away]]) {
-    if (!side || !side.matched) return { ok: false, text: '« ' + name + ' » introuvable dans les fichiers de statistiques et dans les matchs récents d’ESPN.' };
+    if (!side || !side.matched) return { ok: false, text: missMsg(side || { requested: name }) };
     if (!side.all) return { ok: false, text: 'Aucun match joué cette saison par « ' + name + ' » dans les sources.' };
   }
-  const n = Math.min(s.home.all.n, s.away.all.n), limited = [s.home, s.away].some(x => x.src === 'espn');
+  const n = Math.min(s.home.all.n, s.away.all.n), limited = [s.home, s.away].some(x => x.src === 'espn' || x.goalsOnly);
   return n >= (limited ? 3 : 5) ? { ok: true, n } : { ok: false, text: 'Pas assez de matchs joués (' + n + ' pour la moins avancée des deux équipes, minimum ' + (limited ? 3 : 5) + ').' };
 }
 function coverageHtml(list) {
@@ -335,14 +335,15 @@ function statsPanel(f) {
   if (!s) return statsError ? '<div class="hint">Erreur : ' + esc(statsError) + '</div>' : '<div class="hint">Chargement des statistiques…</div>';
   if (s.error) return '<div class="hint">' + esc(s.error) + '</div>';
   const side = [s.home, s.away];
-  for (const x of side) if (!x || !x.matched || !x.all) return '<div class="hint">« ' + esc(x ? x.requested : '?') + ' » introuvable dans la source des statistiques.</div>';
+  for (const x of side) if (!x || !x.matched || !x.all) return '<div class="hint">' + esc(missMsg(x)) + '</div>';
   const H = s.home.all, A = s.away.all;
   const rows = [['Matchs joués', 'n', 0], ['Buts marqués', 'goalsFor', 1], ['Tirs', 'shotsFor', 1], ['Fautes', 'foulsFor', 1], ['Corners', 'cornersFor', 1], ['Cartons jaunes', 'yellowFor', 1]]
-    .map(r => {
+    .filter(r => H[r[1]] != null && A[r[1]] != null).map(r => {
       const h = H[r[1]], a = A[r[1]], t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50;
       return '<div class="sr"><b>' + (r[2] ? f1(h) : h) + '</b><div class="lb">' + r[0] + (r[2] ? '<div class="bar"><span style="width:' + sh + '%"></span></div>' : '') + '</div><b class="r">' + (r[2] ? f1(a) : a) + '</b></div>';
     }).join('');
   return '<div class="hint" style="margin-bottom:6px">Moyennes par match · ' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)' + (s.cross ? ' · moyennes du championnat national de chaque club' : '') + ([s.home, s.away].some(x => x && x.src === 'espn') ? ' · pour les clubs marqués ESPN : moyennes sur les matchs de la compétition (' + H.n + ' / ' + A.n + ' matchs)' : '') + '</div>' + rows +
+    ([s.home, s.away].some(x => x && x.goalsOnly) ? '<div class="hint" style="margin-top:6px">Pour ' + [s.home, s.away].filter(x => x.goalsOnly).map(x => esc(x.requested) + ' (' + esc(x.leagueLabel) + ')').join(' et ') + ', seuls les buts sont connus (la source ne donne ni tirs, ni fautes, ni corners, ni cartons).</div>' : '') +
     '<div class="hint" style="margin-top:6px">Touches et hors-jeu : aucune source gratuite.</div>';
 }
 
@@ -442,7 +443,7 @@ async function fetchStats(list, opt) {
       const chunk = todo.slice(i, i + 30);
       const d = await api('/stats/batch', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: STATS_CODE[f.code], code: f.code, home: f.home, away: f.away, homeId: f.homeId, awayId: f.awayId })) })
+        body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: STATS_CODE[f.code] || 'ESPN', code: f.code, home: f.home, away: f.away, homeId: f.homeId, awayId: f.awayId })) })
       });
       chunk.forEach(f => { if (d.results && d.results[f.id]) statsMap[f.id] = d.results[f.id]; });
     }
@@ -467,12 +468,13 @@ function evaluate(f) {
   const s = statsMap[f.id];
   if (!s) return { f, ok: false, pending: true, reason: 'Statistiques en cours de chargement.' };
   if (s.error) return { f, ok: false, reason: s.error };
-  if (!s.home || !s.home.matched) return { f, ok: false, reason: '« ' + f.home + ' » introuvable dans la source.' };
-  if (!s.away || !s.away.matched) return { f, ok: false, reason: '« ' + f.away + ' » introuvable dans la source.' };
+  if (!s.home || !s.home.matched) return { f, ok: false, reason: missMsg(s.home) };
+  if (!s.away || !s.away.matched) return { f, ok: false, reason: missMsg(s.away) };
   const H = s.home.all, A = s.away.all;
   if (!H || !A) return { f, ok: false, reason: 'Pas assez de matchs joués.' };
+  if ([H[mk.f], H[mk.a], A[mk.f], A[mk.a]].some(v => v == null)) return { f, ok: false, reason: 'Pour cette équipe, seuls les buts sont connus : ' + mk.label.toLowerCase() + ' indisponibles.' };
   const n = Math.min(H.n, A.n);
-  const limited = [s.home, s.away].some(x => x && x.src === 'espn'), minN = limited ? 3 : 5;
+  const limited = [s.home, s.away].some(x => x && (x.src === 'espn' || x.goalsOnly)), minN = limited ? 3 : 5;
   if (n < minN) return { f, ok: false, reason: 'Seulement ' + n + ' match(s) joué(s) par une des équipes (minimum ' + minN + ').' };
   const eh = (H[mk.f] + A[mk.a]) / 2, ea = (A[mk.f] + H[mk.a]) / 2, mu = eh + ea;
   const vs = [H[mk.v], A[mk.v]].filter(v => v != null), v = Math.max(mu, vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : mu);
@@ -657,17 +659,21 @@ function formFactor(side) {
 }
 
 // Buts attendus de chaque équipe à partir des statistiques réelles (jamais de valeur inventée)
+function missMsg(side) {
+  const name = side ? side.requested : '?';
+  return '« ' + name + ' » introuvable' + (side && side.tried && side.tried.length ? ' (essayé : ' + side.tried.join(' ; ') + ')' : ' dans les sources de statistiques') + '.';
+}
 function modelInputs(s) {
   if (!s) return { err: 'Statistiques non chargées.' };
   if (s.error) return { err: s.error };
-  if (!s.home || !s.home.matched) return { err: '« ' + (s.home ? s.home.requested : '?') + ' » introuvable dans la source des statistiques.' };
-  if (!s.away || !s.away.matched) return { err: '« ' + (s.away ? s.away.requested : '?') + ' » introuvable dans la source des statistiques.' };
+  if (!s.home || !s.home.matched) return { err: missMsg(s.home) };
+  if (!s.away || !s.away.matched) return { err: missMsg(s.away) };
   const H = s.home.all, A = s.away.all;
   if (!H || !A) return { err: 'Pas assez de matchs joués.' };
   const lh = s.home.leagueAverages || s.leagueAverages, la = s.away.leagueAverages || s.leagueAverages;
   if (!lh || !la || !(lh.homeGoals > 0) || !(lh.awayGoals > 0) || !(la.homeGoals > 0) || !(la.awayGoals > 0)) return { err: 'Moyennes du championnat indisponibles.' };
-  const limited = [s.home, s.away].some(x => x.src === 'espn'), cross = !!s.cross;
-  const n = Math.min(H.n, A.n), minN = limited ? 4 : 5;
+  const limited = [s.home, s.away].some(x => x.src === 'espn' || x.goalsOnly), cross = !!s.cross;
+  const n = Math.min(H.n, A.n), minN = limited ? 3 : 5;
   if (n < minN) return { err: 'Seulement ' + n + ' match(s) joué(s) par une des équipes (minimum ' + minN + ').' };
   const K = 6, KV = 8, Hh = s.home.home, Aa = s.away.away;
   const avgH = (lh.homeGoals + lh.awayGoals) / 2, avgA = (la.homeGoals + la.awayGoals) / 2;
