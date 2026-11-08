@@ -79,6 +79,11 @@ details summary{cursor:pointer}
 .chk input{width:22px;height:22px;accent-color:var(--navy);flex:none}
 .sel{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:2px 0 8px}
 .sel input{width:22px;height:22px;accent-color:var(--navy)}
+.gl{display:flex;justify-content:space-between;gap:10px;margin:-4px 8px 8px;padding:0 10px;font-size:12px;color:var(--muted)}
+.gl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gl span:last-child{text-align:right}
+.ev{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid #e8eefb;font-size:14px;flex-wrap:wrap}
+.ev:last-child{border:0}.evm{min-width:44px;font-weight:800;color:var(--red)}
+.mcard .tm small.l{font-variant-numeric:tabular-nums}
 .mc{padding:14px;border:1px solid var(--line);border-radius:18px;margin:12px 0;background:var(--card)}
 .mc h4{margin:0 0 3px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
@@ -223,7 +228,7 @@ async function api(path, opts, tries) {
 const ESPN_LOGO = id => id ? 'https://a.espncdn.com/i/teamlogos/soccer/500/' + id + '.png' : '';
 const fromEspn = m => ({
   id: m.id, code: m.code, comp: m.competition, flag: m.flag, utc: m.utcDate, status: m.status, clock: m.clock || '',
-  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || ESPN_LOGO(m.home.id), awayLogo: m.away.crest || ESPN_LOGO(m.away.id), hg: m.homeScore, ag: m.awayScore,
+  home: m.home.name, away: m.away.name, homeLogo: m.home.crest || ESPN_LOGO(m.home.id), awayLogo: m.away.crest || ESPN_LOGO(m.away.id), hg: m.homeScore, ag: m.awayScore, clockSec: m.clockSec == null ? null : m.clockSec, period: m.period || 0, asOf: m.asOf || 0, details: m.details || [],
   homeId: m.home.id || '', awayId: m.away.id || '', eventId: String(m.id).replace(/^espn-/, '')
 });
 const fromFd = x => {
@@ -256,7 +261,7 @@ async function loadTab(force) {
   catch (e) { days[date] = { state: 'error', fixtures: [], diag: [], error: e.message }; }
   renderAll(); fetchStats(candidates()); setTimeout(() => fetchStats(curDay().fixtures, { quiet: true, noBox: true }), 1500);
 }
-function setTab(t) { tab = t; loadTab(false); }
+function setTab(t) { tab = t; loadTab(false); if (t === 'live') setTimeout(() => curDay().fixtures.filter(f => LIVE.has(f.status) && f.eventId).forEach(f => loadMatchStats(f, false)), 600); }
 
 // ---------- Actualisation automatique ----------
 const lastLoad = {}; let lastUpdate = 0, refreshing = false, covOpen = false;
@@ -275,7 +280,7 @@ async function silentRefresh(force) {
     const r = await fetchDay(date), before = fxSig(fx);
     if (r.list.length || !fx.length) {
       days[date] = { state: 'ok', fixtures: r.list, diag: r.diag };
-      const nb = r.list.filter(f => f.eventId && (LIVE.has(f.status) || f.status === 'FINISHED') && (openStats.has(f.id) || prefs.leagues.includes(f.code)));
+      const nb = r.list.filter(f => f.eventId && (LIVE.has(f.status) || f.status === 'FINISHED') && (openStats.has(f.id) || prefs.leagues.includes(f.code) || (tab === 'live' && LIVE.has(f.status))));
       nb.filter(f => LIVE.has(f.status) || (fx.find(o => o.id === f.id) || {}).status !== f.status).forEach(f => loadMatchStats(f, true));
       if (fxSig(r.list) !== before) renderAll();
       fetchStats(candidates()); fetchStats(r.list, { quiet: true, noBox: true });
@@ -321,8 +326,43 @@ function groupByComp(list) {
   list.forEach(f => { const k = f.code || f.comp; (g[k] = g[k] || { code: f.code, name: f.comp, flag: f.flag, items: [] }).items.push(f); });
   return Object.values(g).sort((a, b) => String(a.items[0].utc).localeCompare(String(b.items[0].utc)));
 }
+const pad2 = n => String(n).padStart(2, '0');
+function clockLabel(f, now) {
+  if (f.status === 'PAUSED') return 'MI-TEMPS';
+  now = now || Date.now();
+  let sec = f.clockSec;
+  if (sec == null) { const m = parseInt(String(f.clock || '').replace(/[^0-9]/g, ' ').trim().split(' ')[0], 10); if (!Number.isFinite(m)) return '● EN DIRECT'; sec = m * 60; }
+  const t = sec + Math.min(180, Math.max(0, (now - (f.asOf || lastLoad[dateOf(tab)] || now)) / 1000));
+  const per = f.period || (t > 5400 ? 3 : t > 2700 ? 2 : 1), end = ({ 1: 2700, 2: 5400, 3: 6300, 4: 7200 })[per] || 5400;
+  if (t > end) { const x = t - end; return '● ' + end / 60 + '+' + Math.floor(x / 60) + ':' + pad2(Math.floor(x % 60)); }
+  return '● ' + Math.floor(t / 60) + ':' + pad2(Math.floor(t % 60));
+}
+function tickClocks() {
+  const now = Date.now(), fx = curDay().fixtures;
+  document.querySelectorAll('[data-clk]').forEach(el => { const f = fx.find(x => x.id === el.dataset.clk); if (f && LIVE.has(f.status)) el.textContent = clockLabel(f, now); });
+}
+setInterval(tickClocks, 1000);
+// buteurs sous chaque match (tableau de scores ESPN)
+function goalsLine(f) {
+  const g = (f.details || []).filter(e => e.kind === 'goal' || e.kind === 'pen' || e.kind === 'og');
+  if (!g.length) return '';
+  const txt = side => g.filter(e => e.side === side).map(e => esc(e.player || '?') + ' ' + esc(e.min) + (e.kind === 'pen' ? ' (pen.)' : e.kind === 'og' ? ' (csc)' : '')).join(', ');
+  return '<div class="gl"><span>' + (txt('home') ? '⚽ ' + txt('home') : '') + '</span><span>' + (txt('away') ? txt('away') + ' ⚽' : '') + '</span></div>';
+}
+function eventsHtml(f, d) {
+  const evs = d && d.events && d.events.length ? d.events : (f.details || []), live = LIVE.has(f.status);
+  const goals = evs.filter(e => ['goal', 'pen', 'og'].includes(e.kind)), cards = evs.filter(e => ['yellow', 'red'].includes(e.kind));
+  if (!goals.length && !cards.length) return live ? '<div class="sh" style="margin-top:6px">Buteurs et passeurs</div><div class="hint">Aucun but ni carton pour le moment.</div>' : '';
+  const name = e => e.side === 'home' ? f.home : e.side === 'away' ? f.away : '';
+  const icon = { goal: '⚽', pen: '⚽ (pen.)', og: '⚽ (csc)', yellow: '🟨', red: '🟥' };
+  const line = e => '<div class="ev"><span class="evm">' + esc(e.min || '') + '</span><span>' + icon[e.kind] + ' <b>' + esc(e.player || 'Joueur non précisé') + '</b>' + (e.assist ? ' <span class="hint">passe : ' + esc(e.assist) + '</span>' : '') + (name(e) ? ' <span class="hint">· ' + esc(name(e)) + '</span>' : '') + '</span></div>';
+  let h = '<div class="sh" style="margin-top:6px">Buteurs et passeurs</div>' + (goals.length ? goals.map(line).join('') : '<div class="hint">Aucun but pour le moment.</div>');
+  if (goals.length && !goals.some(e => e.assist)) h += '<div class="hint">Passeurs non fournis par la source pour ce match.</div>';
+  if (cards.length) h += '<div class="sh" style="margin-top:10px">Cartons</div>' + cards.map(line).join('');
+  return h + '<div style="height:8px"></div>';
+}
 function center(f) {
-  if (LIVE.has(f.status)) return '<div class="tm livec">' + esc(f.hg == null ? 0 : f.hg) + ' - ' + esc(f.ag == null ? 0 : f.ag) + '<small class="l">' + (f.status === 'PAUSED' ? 'MI-TEMPS' : '● ' + esc(f.clock || 'EN DIRECT')) + '</small></div>';
+  if (LIVE.has(f.status)) return '<div class="tm livec">' + esc(f.hg == null ? 0 : f.hg) + ' - ' + esc(f.ag == null ? 0 : f.ag) + '<small class="l" data-clk="' + esc(f.id) + '">' + esc(clockLabel(f)) + '</small></div>';
   if (f.status === 'FINISHED') return '<div class="tm">' + esc(f.hg == null ? '-' : f.hg) + ' - ' + esc(f.ag == null ? '-' : f.ag) + '<small class="d">Terminé</small></div>';
   if (f.status === 'POSTPONED') return '<div class="tm">' + hhmm(f.utc) + '<small class="d">Reporté</small></div>';
   if (f.status === 'CANCELLED') return '<div class="tm">' + hhmm(f.utc) + '<small class="d">Annulé</small></div>';
@@ -377,10 +417,10 @@ function modelGoalsHtml(f, d) {
 }
 function matchStatsHtml(f) {
   const live = LIVE.has(f.status), m = mstats[f.id];
-  const head = '<div class="sh">Statistiques du match<small>' + (live ? 'en direct · actualisées toutes les 45 s' : 'match terminé') + '</small></div>';
-  if (!f.eventId) return head + '<div class="hint">Statistiques du match indisponibles avec cette source de calendrier.</div>';
-  if (!m || (m.loading && !m.ok)) return head + '<div class="hint">Chargement des statistiques du match…</div>';
-  if (m.error) return head + '<div class="hint">' + esc(m.error) + '</div><div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Réessayer</button></div>';
+  const head = '<div class="sh">Statistiques du match<small>' + (live ? '<b data-clk="' + esc(f.id) + '" style="color:var(--red)">' + esc(clockLabel(f)) + '</b> · actualisées toutes les 20 s' : 'match terminé') + '</small></div>';
+  if (!f.eventId) return head + eventsHtml(f, null) + '<div class="hint">Statistiques du match indisponibles avec cette source de calendrier.</div>';
+  if (!m || (m.loading && !m.ok)) return head + eventsHtml(f, null) + '<div class="hint">Chargement des statistiques du match…</div>';
+  if (m.error) return head + eventsHtml(f, null) + '<div class="hint">' + esc(m.error) + '</div><div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Réessayer</button></div>';
   const d = m.data, shown = [], missing = [];
   MROWS.forEach(r => {
     const h = d.home[r[1]], a = d.away[r[1]];
@@ -388,15 +428,18 @@ function matchStatsHtml(f) {
     const t = h + a, sh = t > 0 ? Math.round(h / t * 100) : 50, fmt = r[1] === 'xg' ? (v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',')) : (v => Number.isInteger(v) ? v : f1(v));
     shown.push('<div class="sr"><b>' + fmt(h) + '</b><div class="lb">' + r[0] + '<div class="bar"><span style="width:' + sh + '%"></span></div></div><b class="r">' + fmt(a) + '</b></div>');
   });
-  if (!shown.length) return head + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : ' (ESPN ne détaille pas tous les matchs : championnats secondaires, coupes…)') + '.</div>';
-  return head + '<div class="hint" style="margin-bottom:4px">' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)</div>' + shown.join('') +
+  if (!shown.length) return head + eventsHtml(f, d) + '<div class="hint">La source (ESPN) ne fournit pas de statistiques pour ce match' + (d.state === 'pre' ? ' : il n’a pas encore commencé' : ' (ESPN ne détaille pas tous les matchs : championnats secondaires, coupes…)') + '.</div>';
+  return head + eventsHtml(f, d) + '<div class="hint" style="margin-bottom:4px">' + esc(f.home) + ' (gauche) — ' + esc(f.away) + ' (droite)</div>' + shown.join('') +
     modelGoalsHtml(f, d) + (missing.length ? '<div class="hint" style="margin-top:6px">Non fournies par la source : ' + missing.map(esc).join(', ') + '.</div>' : '') +
     (live ? '<div style="margin-top:8px"><button class="btn" onclick="loadMatchStats(curDay().fixtures.find(x=>x.id===\'' + esc(f.id) + '\'),true)">Actualiser maintenant</button></div>' : '');
 }
-setInterval(() => curDay().fixtures.filter(f => LIVE.has(f.status) && openStats.has(f.id)).forEach(f => loadMatchStats(f, true)), 45000);
+const closedLive = new Set(), isOpenF = f => (tab === 'live' && LIVE.has(f.status)) ? !closedLive.has(f.id) : openStats.has(f.id);
+setInterval(() => curDay().fixtures.filter(f => LIVE.has(f.status) && f.eventId && isOpenF(f)).forEach(f => loadMatchStats(f, true)), 20000);
 
 function toggleGroup(code) { closedGroups.has(code) ? closedGroups.delete(code) : closedGroups.add(code); renderFixtures(); }
 function toggleStats(id) {
+  const lf = curDay().fixtures.find(x => x.id === id);
+  if (tab === 'live' && lf && LIVE.has(lf.status)) { closedLive.has(id) ? closedLive.delete(id) : closedLive.add(id); if (!closedLive.has(id)) loadMatchStats(lf, false); renderFixtures(); return; }
   if (openStats.has(id)) openStats.delete(id);
   else { openStats.add(id); const f = curDay().fixtures.find(x => x.id === id); if (f) { fetchStats([f]); if (LIVE.has(f.status) || f.status === 'FINISHED') loadMatchStats(f, false); } }
   renderFixtures();
@@ -418,7 +461,7 @@ function renderFixtures() {
       'onchange="toggleLeague(\'' + esc(g.code) + '\',this.checked)" aria-label="Sélectionner ' + esc(g.name) + '"><span class="fl">' + esc(g.flag) + '</span><span class="gt">' + esc(g.name) +
       '</span><button class="chev ' + (closed ? 'closed' : '') + '" onclick="toggleGroup(\'' + esc(g.code || g.name) + '\')" aria-label="Replier">⌃</button></div>' +
       (closed ? '' : g.items.map(f => '<div class="mcard" onclick="toggleStats(\'' + esc(f.id) + '\')"><span class="tn r">' + esc(f.home) + '</span>' + crest(f.homeLogo) + center(f) + crest(f.awayLogo) + '<span class="tn">' + esc(f.away) + '</span></div>' +
-        (openStats.has(f.id) ? '<div class="sp">' + (LIVE.has(f.status) || f.status === 'FINISHED' ? matchStatsHtml(f) + '<div style="height:12px"></div>' : '') + '<div class="sh">Moyennes des équipes</div>' + statsPanel(f) + '</div>' : '')).join(''));
+        goalsLine(f) + (isOpenF(f) ? '<div class="sp">' + (LIVE.has(f.status) || f.status === 'FINISHED' ? matchStatsHtml(f) + '<div style="height:12px"></div>' : '') + '<div class="sh">Moyennes des équipes</div>' + statsPanel(f) + '</div>' : '')).join(''));
   }).join('');
   $('fixturesBody').innerHTML = h;
 }

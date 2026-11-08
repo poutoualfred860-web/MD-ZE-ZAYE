@@ -610,6 +610,22 @@ const ESPN_LEAGUES = [
 const dayCache = new Map();
 const leagueLogos = {};
 
+function parseDetails(comp, hId, aId) {
+  const out = [];
+  (comp.details || []).forEach(d => {
+    const tid = String((d.team && d.team.id) || "");
+    const side = tid === hId ? "home" : tid === aId ? "away" : "";
+    const a = d.athletesInvolved && d.athletesInvolved[0];
+    const player = (a && (a.displayName || a.fullName || a.shortName)) || "";
+    let kind = null;
+    if (d.scoringPlay) kind = d.ownGoal ? "og" : d.penaltyKick ? "pen" : "goal";
+    else if (d.redCard) kind = "red";
+    else if (d.yellowCard) kind = "yellow";
+    if (kind) out.push({ kind, min: (d.clock && d.clock.displayValue) || "", side, player });
+  });
+  return out;
+}
+
 function normalizeEspnEvent(ev, league) {
   const comp = (ev.competitions && ev.competitions[0]) || {};
   const list = comp.competitors || [];
@@ -640,6 +656,9 @@ function normalizeEspnEvent(ev, league) {
     utcDate: ev.date || comp.date || "",
     status,
     clock: (ev.status && ev.status.displayClock) || "",
+    clockSec: ev.status && ev.status.clock !== undefined && Number.isFinite(Number(ev.status.clock)) ? Number(ev.status.clock) : null,
+    period: (ev.status && Number(ev.status.period)) || 0,
+    details: parseDetails(comp, String(h.team.id), String(a.team.id)),
     home: team(h),
     away: team(a),
     homeScore: score(h),
@@ -661,7 +680,9 @@ async function espnLeagueDay(league, ymd) {
   const logo = data.leagues && data.leagues[0] && data.leagues[0].logos && data.leagues[0].logos[0] && data.leagues[0].logos[0].href;
   if (logo) leagueLogos[league.code] = logo;
   const events = (data.events || []).map(ev => normalizeEspnEvent(ev, league)).filter(Boolean);
-  dayCache.set(key, { time: Date.now(), ttl: events.some(e => e.status === "IN_PLAY" || e.status === "PAUSED") ? 20 * 1000 : 60 * 1000, events });
+  const stamp = Date.now();
+  events.forEach(e => { e.asOf = stamp; });
+  dayCache.set(key, { time: stamp, ttl: events.some(e => e.status === "IN_PLAY" || e.status === "PAUSED") ? 10 * 1000 : 60 * 1000, events });
   return events;
 }
 
@@ -723,6 +744,28 @@ const statNumber = v => {
   return Number.isFinite(n) ? n : null;
 };
 
+function parseKeyEvents(data, sideById) {
+  const out = [];
+  (data.keyEvents || []).forEach(k => {
+    const typeText = squash((k.type && (k.type.text || k.type.type)) || "");
+    const text = String(k.text || "");
+    let kind = null;
+    if (/owngoal/.test(typeText)) kind = "og";
+    else if (/penaltyscored|penaltygoal/.test(typeText)) kind = "pen";
+    else if (k.scoringPlay === true || (/^goal/.test(typeText) && !/nogoal|disallowed|cancel/.test(typeText + squash(text).slice(0, 40)))) kind = "goal";
+    else if (/yellowcard/.test(typeText)) kind = "yellow";
+    else if (/redcard/.test(typeText)) kind = "red";
+    if (!kind) return;
+    const side = sideById[String((k.team && k.team.id) || "")] || "";
+    const p = k.participants && k.participants[0] && k.participants[0].athlete;
+    let player = (p && (p.displayName || p.fullName)) || "";
+    if (!player) { const m = /^[^-]*-\s*([^()]+?)\s*(?:\(|$)/.exec(String(k.shortText || "")); if (m) player = m[1].trim(); }
+    const am = /assisted by ([^.,(]+?)(?:\s+with|\s+following|\.|,|\(|$)/i.exec(text);
+    out.push({ kind, min: (k.clock && k.clock.displayValue) || "", side, player, assist: am ? am[1].trim() : "" });
+  });
+  return out;
+}
+
 function parseBoxscore(data) {
   const header = (data && data.header && data.header.competitions && data.header.competitions[0]) || {};
   const sideById = {};
@@ -755,7 +798,11 @@ function parseBoxscore(data) {
     if (out.home[key] === undefined) out.home[key] = null;
     if (out.away[key] === undefined) out.away[key] = null;
   });
-  return { home: out.home, away: out.away, goals: [goals("home"), goals("away")], state: type.state || "", clock: (header.status && header.status.displayClock) || "" };
+  return {
+    home: out.home, away: out.away, goals: [goals("home"), goals("away")], state: type.state || "", clock: (header.status && header.status.displayClock) || "",
+    clockSec: header.status && Number.isFinite(Number(header.status.clock)) ? Number(header.status.clock) : null, period: (header.status && Number(header.status.period)) || 0,
+    events: parseKeyEvents(data || {}, sideById), asOf: Date.now()
+  };
 }
 
 async function espnSummary(slug, eventId) {
@@ -772,7 +819,7 @@ async function espnSummary(slug, eventId) {
       });
       if (!response.ok) { last = new Error("HTTP " + response.status); continue; }
       const parsed = parseBoxscore(await response.json());
-      const ttl = parsed.state === "post" ? 24 * 3600 * 1000 : 30 * 1000;
+      const ttl = parsed.state === "post" ? 24 * 3600 * 1000 : 15 * 1000;
       summaryCache.set(key, { until: Date.now() + ttl, data: parsed });
       if (summaryCache.size > 2500) summaryCache.delete(summaryCache.keys().next().value);
       return parsed;
