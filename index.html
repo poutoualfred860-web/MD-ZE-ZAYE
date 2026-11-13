@@ -84,6 +84,7 @@ details summary{cursor:pointer}
 .ev{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid #e8eefb;font-size:14px;flex-wrap:wrap}
 .ev:last-child{border:0}.evm{min-width:44px;font-weight:800;color:var(--red)}
 .mcard .tm small.l{font-variant-numeric:tabular-nums}
+.cxl{margin:6px 0 8px;padding:8px 10px;background:#fff;border:1px dashed var(--line);border-radius:12px}
 .mc{padding:14px;border:1px solid var(--line);border-radius:18px;margin:12px 0;background:var(--card)}
 .mc h4{margin:0 0 3px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
@@ -1290,6 +1291,178 @@ function renderHistory() {
 }
 
 loadTab(false);
+</script>
+<script>
+/* ===== Contexte des matchs : blessures, moral, enjeux, repos (effets plafonnés et affichés) ===== */
+(function () {
+  'use strict';
+  const CK = 'mdzz_ctx_v1'; let store = {}; try { store = JSON.parse(localStorage.getItem(CK) || '{}'); } catch (e) { /* vide */ }
+  const persist = () => { try { localStorage.setItem(CK, JSON.stringify(store)); } catch (e) { /* ignoré */ } };
+  const blank = () => ({ abs: [], mood: 0, stakes: null, note: '' });
+  const getCtx = id => { const c = store[id] || {}; return { home: Object.assign(blank(), c.home), away: Object.assign(blank(), c.away), note: c.note || '' }; };
+  const isEmpty = c => !c.note && ['home', 'away'].every(k => !c[k].abs.length && !c[k].mood && c[k].stakes == null);
+  const findFx = id => { for (const d of Object.values(days)) { const f = (d.fixtures || []).find(x => x.id === id); if (f) return f; } return null; };
+  const POS = { GAR: 'Gardien', DEF: 'Défenseur', MIL: 'Milieu', ATT: 'Attaquant', INC: 'Poste inconnu' }, IMP = { 3: 'Titulaire clé', 2: 'Important', 1: 'Rotation', 0: 'À classer' }, KIND = { ble: 'Blessé', sus: 'Suspendu', dou: 'Doute' };
+  const MOOD = { '-2': 'Très bas', '-1': 'Bas', '0': 'Normal', '1': 'Bon', '2': 'Très bon' }, STK = ['Faible', 'Moyen', 'Élevé', 'Décisif'];
+  const pct1 = v => (v > 0 ? '+' : '') + (Math.round(v * 1000) / 10).toString().replace('.', ',') + ' %';
+
+  // ----- facteurs mesurés automatiquement -----
+  const LMETA = { PL: { cl: 4, eu: 6, rel: 3 }, PD: { cl: 4, eu: 6, rel: 3 }, SA: { cl: 4, eu: 6, rel: 3 }, BL1: { cl: 4, eu: 6, rel: 2 }, FL1: { cl: 3, eu: 5, rel: 2 }, PPL: { cl: 2, eu: 4, rel: 2 }, DED: { cl: 2, eu: 4, rel: 2 } };
+  function stakesAuto(side, code) {
+    const st = side && side.standing; if (!st || st.size < 8) return null;
+    const n = st.size, left = Math.max(0, 2 * (n - 1) - st.played), meta = LMETA[code] || { cl: 0, eu: 0, rel: 3 }, tol = left <= 8 ? 4 : 6, me = st.pts, pos = st.pos;
+    const at = k => st.table[Math.min(Math.max(k, 1), n) - 1][0], gap = x => Math.abs(me - x), res = [];
+    if (pos <= 3 && at(1) - me <= tol) res.push({ level: left <= 10 ? 3 : 2, text: pos === 1 ? 'Leader, ' + left + ' match(s) restants' : 'Course au titre (à ' + (at(1) - me) + ' pt(s) du leader)' });
+    if (meta.cl && gap(at(meta.cl)) <= tol && pos <= meta.cl + 3) res.push({ level: 2, text: 'Lutte pour la Ligue des champions (à ' + gap(at(meta.cl)) + ' pt(s) de la ligne)' });
+    if (meta.eu && gap(at(meta.eu)) <= tol && pos <= meta.eu + 3) res.push({ level: 1, text: 'Course aux places européennes (à ' + gap(at(meta.eu)) + ' pt(s))' });
+    if (pos >= n - meta.rel - 3 && gap(at(n - meta.rel)) <= tol) res.push({ level: left <= 10 ? 3 : 2, text: 'Lutte pour le maintien (à ' + gap(at(n - meta.rel)) + ' pt(s) de la zone de relégation)' });
+    res.sort((a, b) => b.level - a.level);
+    return Object.assign({ pos, pts: me, left }, res[0] || { level: 0, text: 'Milieu de tableau : enjeu limité' });
+  }
+  function formAuto(side) {
+    const r = side && side.recent; if (!r || !r.length) return null;
+    const pts = r.map(x => { const home = x.home === side.matched, g = home ? x.hg : x.ag, c = home ? x.ag : x.hg; return g > c ? 3 : g === c ? 1 : 0; });
+    const ppg5 = pts.reduce((a, b) => a + b, 0) / pts.length, st = side.standing, ppg = st && st.played ? st.pts / st.played : null;
+    const seq = pts.map(p => p === 3 ? 'V' : p === 1 ? 'N' : 'D').join(' ');
+    const label = ppg == null ? 'Forme sur ' + pts.length + ' matchs' : ppg5 - ppg >= 0.6 ? 'En confiance' : ppg5 - ppg <= -0.6 ? 'Dans le dur' : 'Stable';
+    return { seq, ppg5, ppg, label };
+  }
+
+  // ----- effets sur les buts attendus (tous plafonnés) -----
+  function contextFactors(f, s, override) {
+    const ctx = override || getCtx(f.id), out = { h: 1, a: 1, factors: [], auto: {} };
+    if (!s) return out;
+    const sides = { home: s.home || {}, away: s.away || {} };
+    ['home', 'away'].forEach(k => { out.auto[k] = { stakes: stakesAuto(sides[k], s.league || f.code), form: formAuto(sides[k]), rest: sides[k].rest || null }; });
+    const eff = {}, defAbs = { home: 0, away: 0 };
+    ['home', 'away'].forEach(k => {
+      const t = ctx[k], o = k === 'home' ? 'away' : 'home', name = k === 'home' ? f.home : f.away;
+      let att = 0, oppAtt = 0;
+      t.abs.forEach(a => {
+        if (!a.imp) return;
+        const w = ({ 3: 0.04, 2: 0.02, 1: 0.005 })[a.imp] * (a.kind === 'dou' ? 0.5 : 1);
+        if (a.pos === 'ATT') att -= w; else if (a.pos === 'MIL') { att -= w * 0.5; oppAtt += w * 0.5; } else if (a.pos === 'DEF') oppAtt += w * 0.75; else if (a.pos === 'GAR') oppAtt += w;
+        out.factors.push({ k, text: name + ' : ' + (KIND[a.kind] || 'Absent') + ' ' + a.name + ' (' + (POS[a.pos] || '').toLowerCase() + ', ' + (IMP[a.imp] || '').toLowerCase() + ')' });
+      });
+      att = Math.max(att, -0.12); defAbs[k] = Math.min(oppAtt, 0.09);
+      const mood = clampN(t.mood || 0, -2, 2) * 0.015; if (mood) out.factors.push({ k, text: name + ' : moral ' + MOOD[t.mood].toLowerCase() + ' (' + pct1(mood) + ' buts)' });
+      const sk = t.stakes != null ? t.stakes : (out.auto[k].stakes ? out.auto[k].stakes.level : null), so = ctx[o].stakes != null ? ctx[o].stakes : (out.auto[o].stakes ? out.auto[o].stakes.level : null);
+      const stk = sk != null && so != null ? clampN(0.01 * (sk - so), -0.02, 0.02) : 0; if (stk) out.factors.push({ k, text: name + ' : enjeu ' + STK[sk].toLowerCase() + ' face à ' + STK[so].toLowerCase() + ' (' + pct1(stk) + ' buts)' });
+      const rs = out.auto[k].rest; let rest = 0;
+      if (rs) { if (rs.days <= 3) rest -= 0.02; else if (rs.days <= 5) rest -= 0.005; if (rs.n14 >= 4) rest -= 0.015; rest = Math.max(rest, -0.03); }
+      if (rest) out.factors.push({ k, text: name + ' : ' + rs.days + ' jour(s) de repos, ' + rs.n14 + ' match(s) en 14 jours (' + pct1(rest) + ' buts)' });
+      eff[k] = 1 + clampN(att + mood + stk + rest, -0.15, 0.06);
+    });
+    out.h = eff.home * (1 + defAbs.away); out.a = eff.away * (1 + defAbs.home);
+    if (defAbs.away) out.factors.push({ k: 'home', text: f.away + ' : absences défensives (' + pct1(defAbs.away) + ' buts pour ' + f.home + ')' });
+    if (defAbs.home) out.factors.push({ k: 'away', text: f.home + ' : absences défensives (' + pct1(defAbs.home) + ' buts pour ' + f.away + ')' });
+    return out;
+  }
+
+  // ----- le pronostic tient compte du contexte -----
+  window.predictFixture = function (f, opt) {
+    opt = opt || {};
+    const s = statsMap[f.id], m = modelInputs(s);
+    if (m.err) return { err: m.err };
+    const cx = opt.noCtx ? null : contextFactors(f, s, opt.ctx);
+    const lh = clampN(m.lh * (cx ? cx.h : 1), 0.2, 3.8), la = clampN(m.la * (cx ? cx.a : 1), 0.2, 3.8);
+    const M = scoreMatrix(lh, la), L = marketList(M), main = chooseMain(L, scoreMatrix(m.base[0], m.base[1]));
+    const P = { p1: sumM(M, SETS['1']), px: sumM(M, (i, j) => i === j), p2: sumM(M, SETS['2']) };
+    return {
+      v: 2,
+      pick: { code: main.code, p: main.p, sub: fillNames(main.subT, f.home, f.away), subT: main.subT, chk: main.chk, fam: main.fam, min: main.min, weak: main.weak },
+      score: bestScore(M, chkPred(main.chk)), p1: P.p1, px: P.px, p2: P.p2, lam: [lh, la], n: m.n, cross: m.cross, limited: m.limited,
+      others: otherMarkets(L, main).map(x => ({ p: x.p, label: fillNames(x.subT, f.home, f.away), labelT: x.subT, chk: x.chk, fam: x.fam })),
+      conf: confidenceOf(m.n, m.cross, m.limited, main), ts: Date.now(),
+      ctx: cx ? { factors: cx.factors.map(x => x.text), lam0: [m.lh, m.la] } : null
+    };
+  };
+
+  // ----- ligne de résumé + bouton, dans les cartes Analyse et Pronostics -----
+  const nUser = id => { const c = getCtx(id); return c.home.abs.length + c.away.abs.length + (c.home.mood ? 1 : 0) + (c.away.mood ? 1 : 0) + (c.home.stakes != null ? 1 : 0) + (c.away.stakes != null ? 1 : 0) + (c.note ? 1 : 0); };
+  function ctxLine(f) {
+    const cx = contextFactors(f, statsMap[f.id]), n = nUser(f.id);
+    const txt = cx.factors.length ? cx.factors.map(x => esc(x.text)).join('<br>') : 'Aucun facteur de contexte pris en compte (blessures, moral et enjeux non renseignés).';
+    return '<div class="cxl"><div class="hint"><b>Contexte :</b> ' + txt + '</div><button class="btn" style="margin-top:6px" onclick="openCtx(\'' + esc(f.id) + '\')">🧩 Contexte du match' + (n ? ' (' + n + ')' : '') + '</button></div>';
+  }
+  const origHeader = window.header;
+  window.header = function (e) { return origHeader(e) + ctxLine(e.f); };
+  const origRP = window.renderPrediction;
+  window.renderPrediction = function () {
+    origRP.apply(this, arguments);
+    const host = $('predBody'); if (!host || typeof curSpecs === 'undefined' || !curSpecs.length) return;
+    const items = []; curSpecs.forEach(s => s.items.forEach(it => items.push(it.f)));
+    host.insertAdjacentHTML('beforeend', '<div class="card"><details><summary><b>Contexte des matchs (blessures, moral, enjeux)</b></summary><div class="hint" style="margin:8px 0">Ajoute les absences et ton analyse : le pronostic des matchs pas encore commencés est recalculé tout de suite. Effets plafonnés, détaillés dans chaque fiche.</div>' +
+      items.map(f => '<div class="rowm" style="grid-template-columns:1fr auto"><div class="n"><span>' + esc(f.home) + '</span><span>' + esc(f.away) + '</span></div><button class="btn" onclick="openCtx(\'' + esc(f.id) + '\')">🧩 Contexte' + (nUser(f.id) ? ' (' + nUser(f.id) + ')' : '') + '</button></div>').join('') + '</details></div>');
+  };
+
+  // ----- fenêtre d'édition -----
+  let cur = null, draft = null;
+  const mapPos = p => /^(g|gk|gar)/i.test(p) ? 'GAR' : /^(d|cb|lb|rb|wb)/i.test(p) ? 'DEF' : /^(m|cm|dm|am|lm|rm)/i.test(p) ? 'MIL' : /^(f|fw|st|cf|lw|rw|a)/i.test(p) ? 'ATT' : 'INC';
+  const mapKind = t => /suspen/i.test(t) ? 'sus' : /doubt|question|day|incert/i.test(t) ? 'dou' : 'ble';
+  function impact() {
+    const f = cur, a = window.predictFixture(f, { noCtx: true }), b = window.predictFixture(f, { ctx: draft });
+    if (a.err || b.err) return '<div class="hint">Aperçu indisponible : statistiques de l’équipe pas encore chargées.</div>';
+    const p = x => Math.round(x * 100);
+    return '<div class="card" style="margin:10px 0"><b>Effet sur le pronostic</b><div class="hint" style="margin-top:6px">Buts attendus : ' + f1(a.lam[0]) + ' – ' + f1(a.lam[1]) + ' → <b>' + f1(b.lam[0]) + ' – ' + f1(b.lam[1]) + '</b><br>1 / N / 2 : ' + p(a.p1) + ' / ' + p(a.px) + ' / ' + p(a.p2) + ' % → <b>' + p(b.p1) + ' / ' + p(b.px) + ' / ' + p(b.p2) + ' %</b><br>Pronostic principal : ' + esc(a.pick.code) + ' → <b>' + esc(b.pick.code) + '</b> (' + p(b.pick.p) + ' %)</div></div>';
+  }
+  function teamBox(k) {
+    const f = cur, name = k === 'home' ? f.home : f.away, s = statsMap[f.id] || {}, t = draft[k], au = contextFactors(f, s, draft).auto[k] || {};
+    let h = '<div class="card" style="margin:10px 0"><h3 class="title" style="font-size:16px">' + esc(name) + (k === 'home' ? ' (domicile)' : ' (extérieur)') + '</h3>';
+    const autos = [];
+    if (au.stakes) autos.push('<b>Enjeu (calculé)</b> : ' + STK[au.stakes.level] + ' — ' + esc(au.stakes.text) + ' · ' + au.stakes.pos + 'e, ' + au.stakes.pts + ' pts');
+    if (au.rest) autos.push('<b>Repos</b> : ' + au.rest.days + ' jour(s) depuis le dernier match, ' + au.rest.n14 + ' match(s) sur 14 jours');
+    if (au.form) autos.push('<b>Dynamique</b> : ' + esc(au.form.label) + ' — ' + au.form.seq + ' (' + f1(au.form.ppg5) + ' pt/match' + (au.form.ppg != null ? ' contre ' + f1(au.form.ppg) + ' sur la saison' : '') + ') <span class="hint">· déjà dans le modèle</span>');
+    h += '<div class="hint">' + (autos.length ? autos.join('<br>') : 'Pas de donnée automatique (classement, repos) pour cette équipe.') + '</div>';
+    h += '<label class="l">Absences (blessés, suspendus, doutes)</label>' + (t.abs.length ? t.abs.map((a, i) => '<div class="ev"><span><b>' + esc(a.name) + '</b> <span class="hint">' + (KIND[a.kind] || '') + ' · ' + (POS[a.pos] || '') + (a.auto ? ' · ESPN' : '') + '</span></span>' +
+      '<select onchange="ctxSetImp(\'' + k + '\',' + i + ',this.value)">' + [3, 2, 1, 0].map(v => '<option value="' + v + '" ' + (a.imp === v ? 'selected' : '') + '>' + IMP[v] + '</option>').join('') + '</select><button class="btn" style="padding:4px 10px" onclick="ctxDel(\'' + k + '\',' + i + ')">✕</button></div>').join('') : '<div class="hint">Aucune absence saisie.</div>');
+    h += '<div class="row" style="margin-top:8px"><input id="cx-n-' + k + '" placeholder="Nom du joueur" style="flex:1;min-width:120px;padding:9px;border-radius:9px;border:1px solid var(--line)">' +
+      '<select id="cx-p-' + k + '">' + Object.entries(POS).filter(e => e[0] !== 'INC').map(e => '<option value="' + e[0] + '">' + e[1] + '</option>').join('') + '</select>' +
+      '<select id="cx-i-' + k + '">' + [3, 2, 1].map(v => '<option value="' + v + '">' + IMP[v] + '</option>').join('') + '</select>' +
+      '<select id="cx-k-' + k + '">' + Object.entries(KIND).map(e => '<option value="' + e[0] + '">' + e[1] + '</option>').join('') + '</select>' +
+      '<button class="btn primary" onclick="ctxAdd(\'' + k + '\')">Ajouter</button></div>';
+    h += '<label class="l">Moral / mentalité (ton évaluation)</label><div class="chips">' + [-2, -1, 0, 1, 2].map(v => '<button class="chip ' + ((t.mood || 0) === v ? 'on' : '') + '" onclick="ctxMood(\'' + k + '\',' + v + ')">' + MOOD[v] + '</button>').join('') + '</div>';
+    h += '<label class="l">Enjeu (remplace le calcul automatique)</label><div class="chips"><button class="chip ' + (t.stakes == null ? 'on' : '') + '" onclick="ctxStakes(\'' + k + '\',null)">Auto</button>' + STK.map((x, v) => '<button class="chip ' + (t.stakes === v ? 'on' : '') + '" onclick="ctxStakes(\'' + k + '\',' + v + ')">' + x + '</button>').join('') + '</div>';
+    return h + '</div>';
+  }
+  function renderModal() {
+    const f = cur, started = startedF(f);
+    $('ctxBody').innerHTML = '<h2 class="title">🧩 ' + esc(f.home) + ' — ' + esc(f.away) + '</h2>' +
+      (started ? '<div class="warning">Le match a commencé : le pronostic enregistré ne change plus. Ce contexte sert seulement à l’analyse.</div>' : '') +
+      '<div class="hint">Les blessures, le moral et les enjeux ne sont pas fournis par les sources gratuites : tu les renseignes, l’appli en tient compte avec des effets limités (au plus −15 % / +6 % de buts par équipe), affichés ci-dessous. Le repos et le classement sont calculés automatiquement.</div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn" onclick="ctxFetchInj()">Récupérer les blessés (ESPN)</button><span class="hint" id="cxMsg"></span></div>' +
+      teamBox('home') + teamBox('away') + '<label class="l">Note</label><textarea id="cxNote" rows="2" style="width:100%;padding:9px;border-radius:9px;border:1px solid var(--line)" onchange="ctxNote(this.value)">' + esc(draft.note) + '</textarea>' + impact() +
+      '<div class="row" style="margin:12px 0"><button class="btn primary" onclick="ctxSave()">Enregistrer et recalculer</button><button class="btn" onclick="ctxReset()">Réinitialiser</button><button class="btn" onclick="ctxClose()">Fermer</button></div>';
+  }
+  const ensureModal = () => { if ($('ctxModal')) return; document.body.insertAdjacentHTML('beforeend', '<div id="ctxModal" class="hidden" style="position:fixed;inset:0;background:#fff;z-index:30;overflow-y:auto;padding:14px 14px 40px"><div id="ctxBody" style="max-width:760px;margin:auto"></div></div>'); };
+  window.openCtx = id => { cur = findFx(id); if (!cur) return; draft = JSON.parse(JSON.stringify(getCtx(id))); ensureModal(); renderModal(); $('ctxModal').classList.remove('hidden'); document.body.style.overflow = 'hidden'; };
+  window.ctxClose = () => { $('ctxModal').classList.add('hidden'); document.body.style.overflow = ''; };
+  window.ctxAdd = k => { const n = $('cx-n-' + k).value.trim(); if (!n) return; draft[k].abs.push({ name: n, pos: $('cx-p-' + k).value, imp: Number($('cx-i-' + k).value), kind: $('cx-k-' + k).value }); renderModal(); };
+  window.ctxDel = (k, i) => { draft[k].abs.splice(i, 1); renderModal(); };
+  window.ctxSetImp = (k, i, v) => { draft[k].abs[i].imp = Number(v); renderModal(); };
+  window.ctxMood = (k, v) => { draft[k].mood = v; renderModal(); };
+  window.ctxStakes = (k, v) => { draft[k].stakes = v; renderModal(); };
+  window.ctxNote = v => { draft.note = v; };
+  window.ctxReset = () => { draft = { home: blank(), away: blank(), note: '' }; renderModal(); };
+  window.ctxSave = () => {
+    if (isEmpty(draft)) delete store[cur.id]; else store[cur.id] = draft;
+    persist();
+    if (!startedF(cur) && hist[cur.id]) hist[cur.id].pred.v = 0;      // le pronostic d'un match pas commencé est recalculé
+    if (predInfo.days) predInfo.days = predInfo.days.map(d => buildDay(d.date));
+    saveHist(); renderAll(); window.ctxClose();
+  };
+  window.ctxFetchInj = async () => {
+    const msg = $('cxMsg'); msg.textContent = 'Recherche…';
+    try {
+      const d = await api('/match-injuries?code=' + encodeURIComponent(cur.code) + '&event=' + encodeURIComponent(cur.eventId || String(cur.id).replace(/^espn-/, '')), null, 1);
+      if (!d.available) { msg.textContent = 'ESPN ne publie pas les blessés pour ce match : saisis-les à la main.'; return; }
+      let added = 0;
+      d.injuries.forEach(x => { const k = x.side === 'away' ? 'away' : 'home'; if (!draft[k].abs.some(a => a.name === x.name)) { draft[k].abs.push({ name: x.name, pos: mapPos(x.pos), imp: 0, kind: mapKind(x.status + ' ' + x.detail), auto: true }); added++; } });
+      renderModal(); $('cxMsg').textContent = added + ' joueur(s) ajouté(s) : classe leur importance pour qu’ils comptent dans le calcul.';
+    } catch (e) { msg.textContent = 'Blessés indisponibles (' + e.message + ') : saisis-les à la main.'; }
+  };
+})();
+
 </script>
 </body>
 </html>

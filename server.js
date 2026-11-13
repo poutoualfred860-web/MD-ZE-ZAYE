@@ -287,6 +287,7 @@ function aggregate(rows) {
 
   const teams = {};
   const league = { n: 0, homeGoals: 0, awayGoals: 0 };
+  const table = {};
   const ensure = name => {
     if (!teams[name]) teams[name] = { all: emptyTotals(), home: emptyTotals(), away: emptyTotals(), recent: [] };
     return teams[name];
@@ -314,6 +315,12 @@ function aggregate(rows) {
     if (!home || !away) return;
     const rg = [val(r, "FTHG"), val(r, "FTAG")];
     const day = "Date" in idx ? csvDate(r[idx.Date]) : "";
+    if (rg[0] !== null && rg[1] !== null) {
+      [[home, rg[0], rg[1]], [away, rg[1], rg[0]]].forEach(([n, gf, ga]) => {
+        const t = table[n] || (table[n] = { p: 0, pts: 0, gf: 0, ga: 0 });
+        t.p++; t.gf += gf; t.ga += ga; t.pts += gf > ga ? 3 : gf === ga ? 1 : 0;
+      });
+    }
     if (day && rg[0] !== null && rg[1] !== null) {
       const played = { d: day, home, away, hg: rg[0], ag: rg[1] };
       ensure(home).recent.push(played);
@@ -332,7 +339,7 @@ function aggregate(rows) {
     league.homeGoals = Math.round((league.homeGoals / league.n) * 100) / 100;
     league.awayGoals = Math.round((league.awayGoals / league.n) * 100) / 100;
   }
-  return { teams, league };
+  return { teams, league, table };
 }
 
 function averages(t) {
@@ -387,9 +394,9 @@ async function getLeagueStats(league, seasonOverride) {
     const hit = statsCache.get(key);
     if (hit && Date.now() - hit.time < STATS_TTL) return hit.value;
     try {
-      const { teams, league: leagueAvg } = aggregate(parseCsv(await fetchCsv(csvCode, season)));
+      const { teams, league: leagueAvg, table } = aggregate(parseCsv(await fetchCsv(csvCode, season)));
       if (Object.keys(teams).length) {
-        const value = { season, teams, league: leagueAvg };
+        const value = { season, teams, league: leagueAvg, table };
         statsCache.set(key, { time: Date.now(), value });
         return value;
       }
@@ -463,9 +470,18 @@ function matchTeam(requested, names) {
   return m ? m.name : null;
 }
 
+function standingOf(table, name) {
+  if (!table || !table[name]) return null;
+  const rows = Object.entries(table).map(([n, t]) => ({ n, p: t.p, pts: t.pts, gd: t.gf - t.ga, gf: t.gf }))
+    .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+  const pos = rows.findIndex(r => r.n === name) + 1, me = rows[pos - 1];
+  return { pos, pts: me.pts, played: me.p, gd: me.gd, size: rows.length, table: rows.map(r => [r.pts, r.p]) };
+}
+
 function teamPayload(requested, data, name, leagueCode) {
   const t = data.teams[name];
   return {
+    standing: standingOf(data.table, name),
     requested,
     matched: name,
     league: leagueCode,
@@ -874,7 +890,24 @@ function accumulate(t, mine, theirs) {
   t.yellowFor += mine.y; t.yellowAgainst += theirs.y;
 }
 
+const INTL_SLUGS = ["uefa.nations", "fifa.friendly", "fifa.worldq.uefa", "uefa.euroq", "uefa.euro", "fifa.world", "uefa.worldq", "concacaf.nations.league"];
+async function internationalHistory(league) {
+  const from = ymd(new Date(Date.now() - 600 * 86400000)), to = ymd(new Date());
+  const parts = await Promise.allSettled(INTL_SLUGS.map(async slug => {
+    const response = await fetch(ESPN_BASE + "/" + slug + "/scoreboard?dates=" + from + "-" + to + "&limit=500", { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20000) });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const data = await response.json();
+    return (data.events || []).map(ev => normalizeEspnEvent(ev, league)).filter(e => e && e.status === "FINISHED").map(e => Object.assign(e, { _slug: slug }));
+  }));
+  const seen = new Set();
+  return parts.filter(p => p.status === "fulfilled").flatMap(p => p.value)
+    .filter(e => !seen.has(e.id) && seen.add(e.id))
+    .sort((a, b) => String(b.utcDate).localeCompare(String(a.utcDate)))
+    .slice(0, 160);
+}
+
 async function competitionHistory(league) {
+  if (league.code === "UNL") return internationalHistory(league);
   const from = new Date(Date.now() - 75 * 24 * 3600 * 1000);
   const response = await fetch(ESPN_BASE + "/" + league.slug + "/scoreboard?dates=" + ymd(from) + "-" + ymd(new Date()) + "&limit=500", {
     headers: { Accept: "application/json" },
@@ -895,7 +928,7 @@ function competitionStats(code) {
   const league = ESPN_LEAGUES.find(l => l.code === code);
   const promise = (async () => {
     const events = await competitionHistory(league);
-    const sums = await mapPool(events, 5, ev => espnSummary(league.slug, ev.id.replace(/^espn-/, "")));
+    const sums = await mapPool(events, 5, ev => espnSummary(ev._slug || league.slug, ev.id.replace(/^espn-/, "")));
     const teams = {};
     events.forEach((ev, i) => {
       const p = sums[i];
@@ -1008,7 +1041,7 @@ async function goalsFromCsv(name) {
 
 // 2) Résultats de TOUTES les compétitions suivies par ESPN sur les 45 derniers jours (identification par numéro d'équipe)
 const allDayCache = new Map();
-let allTablePromise = null, allTableTime = 0;
+let allTablePromise = null, allTableTime = 0, allTableResolved = null;
 async function espnAllDay(ds) {
   const hit = allDayCache.get(ds);
   if (hit && Date.now() < hit.until) return hit.events;
@@ -1046,7 +1079,7 @@ function espnAllTable() {
     });
     return { byId, byName, league: poolAverages(all), diag: { days: days.length, okDays, events: all.length } };
   })();
-  allTablePromise.catch(() => { allTablePromise = null; });
+  allTablePromise.then(v => { allTableResolved = v; }).catch(() => { allTablePromise = null; });
   return allTablePromise;
 }
 async function goalsFromEspnAll(name, id) {
@@ -1100,6 +1133,50 @@ async function goalsFallback(name, id, code) {
   return { side: cands[0] || null, tried };
 }
 
+// Repos et enchaînement des matchs (tous championnats et coupes confondus), quand la table ESPN est déjà chargée
+function restOf(name, id) {
+  const t = allTableResolved;
+  if (!t) return null;
+  const key = (id && t.byId[String(id)] ? String(id) : null) || t.byName[teamTokens(name).join(" ")];
+  const team = key ? t.byId[key] : null;
+  if (!team || !team.recent.length) return null;
+  const at = d => Date.parse(d + "T12:00:00Z");
+  const recs = team.recent.slice().sort((a, b) => b.d.localeCompare(a.d));
+  return { days: Math.max(0, Math.floor((Date.now() - at(recs[0].d)) / 86400000)), n14: recs.filter(r => at(r.d) >= Date.now() - 14 * 86400000).length, last: recs[0].d };
+}
+
+// Blessés et suspendus, quand ESPN les publie pour le match (pas pour tous les championnats)
+function parseInjuries(data) {
+  const out = [], comp = data.header && data.header.competitions && data.header.competitions[0], sideById = {};
+  ((comp && comp.competitors) || []).forEach(c => { sideById[String((c.team && c.team.id) || c.id)] = c.homeAway; });
+  (data.injuries || []).forEach(t => {
+    const side = sideById[String((t.team && t.team.id) || "")] || "";
+    (t.injuries || []).forEach(i => {
+      const a = i.athlete || {};
+      out.push({ side, name: a.displayName || a.fullName || "", pos: (a.position && (a.position.abbreviation || a.position.name)) || "", status: i.status || (i.type && i.type.description) || "", detail: (i.details && (i.details.type || i.details.detail)) || i.shortComment || "" });
+    });
+  });
+  return out.filter(x => x.name);
+}
+const injCache = new Map();
+app.get("/match-injuries", async (req, res) => {
+  const code = String(req.query.code || ""), id = String(req.query.id || req.query.event || "").replace(/^espn-/, "");
+  const league = ESPN_LEAGUES.find(l => l.code === code);
+  if (!league || !/^\d+$/.test(id)) return res.status(400).json({ error: "Paramètres code et event invalides." });
+  try {
+    const hit = injCache.get(league.slug + id);
+    if (hit && Date.now() - hit.time < 30 * 60 * 1000) return res.json(hit.value);
+    const r = await fetch(ESPN_BASE + "/" + league.slug + "/summary?event=" + encodeURIComponent(id), { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const injuries = parseInjuries(await r.json());
+    const value = { available: injuries.length > 0, source: "espn", injuries };
+    injCache.set(league.slug + id, { time: Date.now(), value });
+    res.json(value);
+  } catch (error) {
+    res.status(502).json({ error: "Blessés indisponibles.", details: error.message });
+  }
+});
+
 async function statsForItem(item) {
   const league = String(item.league || "").toUpperCase();
   const code = String(item.code || "").toUpperCase();
@@ -1137,6 +1214,9 @@ async function statsForItem(item) {
     }
   }
   if (!payload) throw firstError || new Error("Statistiques indisponibles.");
+  for (const k of ["home", "away"]) {
+    if (payload[k] && payload[k].matched) { const r = restOf(sides[k][0], sides[k][1]); if (r) payload[k].rest = r; }
+  }
   return payload;
 }
 
@@ -1163,6 +1243,9 @@ app.get("/img", async (req, res) => {
     res.status(502).json({ error: "Image indisponible." });
   }
 });
+
+setTimeout(() => espnAllTable().catch(() => {}), 4000);
+setInterval(() => espnAllTable().catch(() => {}), 25 * 60 * 1000);
 
 app.listen(PORT, () => {
   console.log("MD ZE ZAYE API démarrée sur le port " + PORT);
