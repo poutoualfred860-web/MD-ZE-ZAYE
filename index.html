@@ -493,7 +493,7 @@ function candidates() { return dayFixtures().filter(f => prefs.leagues.includes(
 async function fetchStats(list, opt) {
   opt = opt || {};
   if (!opt.noBox) list.filter(f => f.eventId && (f.status === 'FINISHED' || LIVE.has(f.status))).forEach(f => loadMatchStats(f, false));
-  const todo = list.filter(f => covered(f.code) && !(f.id in statsMap) && !statsPending.has(f.id));
+  const todo = list.filter(f => covered(f.code) && (!(f.id in statsMap) || (statsMap[f.id].partial && Date.now() - (statsMap[f.id]._t || 0) > 60000)) && !statsPending.has(f.id));
   if (!todo.length) return;
   todo.forEach(f => statsPending.add(f.id)); if (!opt.quiet) { statsLoading = true; statsError = ''; renderAll(); }
   try {
@@ -503,7 +503,7 @@ async function fetchStats(list, opt) {
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ items: chunk.map(f => ({ id: f.id, league: STATS_CODE[f.code] || 'ESPN', code: f.code, home: f.home, away: f.away, homeId: f.homeId, awayId: f.awayId })) })
       });
-      chunk.forEach(f => { if (d.results && d.results[f.id]) statsMap[f.id] = d.results[f.id]; });
+      chunk.forEach(f => { if (d.results && d.results[f.id]) { statsMap[f.id] = d.results[f.id]; statsMap[f.id]._t = Date.now(); } });
     }
   } catch (e) { if (!opt.quiet) statsError = e.message; }
   todo.forEach(f => statsPending.delete(f.id)); if (!opt.quiet) statsLoading = statsPending.size > 0; renderAll();

@@ -864,6 +864,8 @@ app.get("/match-stats", async (req, res) => {
 const compStatsCache = new Map();
 const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
 
+const BUDGET_MS = Number(process.env.STATS_BUDGET_MS) || 15000;
+const withBudget = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms || BUDGET_MS))]);
 async function mapPool(items, size, fn) {
   const out = new Array(items.length).fill(null);
   let next = 0;
@@ -903,7 +905,7 @@ async function internationalHistory(league) {
   return parts.filter(p => p.status === "fulfilled").flatMap(p => p.value)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
     .sort((a, b) => String(b.utcDate).localeCompare(String(a.utcDate)))
-    .slice(0, 160);
+    .slice(0, 100);
 }
 
 async function competitionHistory(league) {
@@ -928,7 +930,7 @@ function competitionStats(code) {
   const league = ESPN_LEAGUES.find(l => l.code === code);
   const promise = (async () => {
     const events = await competitionHistory(league);
-    const sums = await mapPool(events, 5, ev => espnSummary(ev._slug || league.slug, ev.id.replace(/^espn-/, "")));
+    const sums = await mapPool(events, 8, ev => espnSummary(ev._slug || league.slug, ev.id.replace(/^espn-/, "")));
     const teams = {};
     events.forEach((ev, i) => {
       const p = sums[i];
@@ -1083,7 +1085,8 @@ function espnAllTable() {
   return allTablePromise;
 }
 async function goalsFromEspnAll(name, id) {
-  const table = await espnAllTable();
+  const table = await withBudget(espnAllTable(), 12000);
+  if (!table) return { side: null, diag: { events: 0, note: "chargement en cours" } };
   const key = (id && table.byId[String(id)] ? String(id) : null) || table.byName[teamTokens(name).join(" ")];
   const t = key ? table.byId[key] : null;
   return { side: t ? goalsSide(name, t, table.league, "goals-espn", "ESPN, toutes compétitions") : null, diag: table.diag };
@@ -1184,6 +1187,7 @@ async function statsForItem(item) {
   const away = String(item.away || "");
   let payload = null;
   let firstError = null;
+  let partial = false;
 
   if (league !== "ESPN") {
     try { payload = await statsPayload(league, home, away, null); } catch (e) { firstError = e; }
@@ -1192,12 +1196,15 @@ async function statsForItem(item) {
   const ok = side => side && side.matched && side.all;
   if ((!payload || !ok(payload.home) || !ok(payload.away)) && ESPN_LEAGUES.some(l => l.code === code)) {
     try {
-      const teams = await competitionStats(code);
-      const base = payload || { source: "espn", league: code, unavailable: ["Touches"] };
-      payload = Object.assign({}, base, {
-        home: ok(base.home) ? base.home : espnSide(teams, item.homeId, home, code),
-        away: ok(base.away) ? base.away : espnSide(teams, item.awayId, away, code)
-      });
+      const teams = await withBudget(competitionStats(code));
+      if (teams === null) partial = true;
+      else {
+        const base = payload || { source: "espn", league: code, unavailable: ["Touches"] };
+        payload = Object.assign({}, base, {
+          home: ok(base.home) ? base.home : espnSide(teams, item.homeId, home, code),
+          away: ok(base.away) ? base.away : espnSide(teams, item.awayId, away, code)
+        });
+      }
     } catch (e) {
       if (!payload) payload = null;
     }
@@ -1214,6 +1221,7 @@ async function statsForItem(item) {
     }
   }
   if (!payload) throw firstError || new Error("Statistiques indisponibles.");
+  if (partial && ![payload.home, payload.away].every(x => x && x.src === "espn")) payload.partial = true;
   for (const k of ["home", "away"]) {
     if (payload[k] && payload[k].matched) { const r = restOf(sides[k][0], sides[k][1]); if (r) payload[k].rest = r; }
   }
@@ -1245,6 +1253,8 @@ app.get("/img", async (req, res) => {
 });
 
 setTimeout(() => espnAllTable().catch(() => {}), 4000);
+setTimeout(() => ["UNL", "EL", "ECL"].forEach(c => competitionStats(c).catch(() => {})), 8000);
+setInterval(() => ["UNL", "EL", "ECL"].forEach(c => competitionStats(c).catch(() => {})), 170 * 60 * 1000);
 setInterval(() => espnAllTable().catch(() => {}), 25 * 60 * 1000);
 
 app.listen(PORT, () => {
