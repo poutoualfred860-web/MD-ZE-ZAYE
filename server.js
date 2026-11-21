@@ -893,7 +893,15 @@ function accumulate(t, mine, theirs) {
 }
 
 const INTL_SLUGS = ["uefa.nations", "fifa.friendly", "fifa.worldq.uefa", "uefa.euroq", "uefa.euro", "fifa.world", "uefa.worldq", "concacaf.nations.league"];
-async function internationalHistory(league) {
+let intlCache = null;
+function internationalHistory(league) {
+  if (intlCache && Date.now() - intlCache.time < 3 * 3600 * 1000) return intlCache.promise;
+  const promise = internationalHistoryLoad(league);
+  intlCache = { time: Date.now(), promise };
+  promise.catch(() => { intlCache = null; });
+  return promise;
+}
+async function internationalHistoryLoad(league) {
   const from = ymd(new Date(Date.now() - 600 * 86400000)), to = ymd(new Date());
   const parts = await Promise.allSettled(INTL_SLUGS.map(async slug => {
     const response = await fetch(ESPN_BASE + "/" + slug + "/scoreboard?dates=" + from + "-" + to + "&limit=500", { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20000) });
@@ -904,12 +912,11 @@ async function internationalHistory(league) {
   const seen = new Set();
   return parts.filter(p => p.status === "fulfilled").flatMap(p => p.value)
     .filter(e => !seen.has(e.id) && seen.add(e.id))
-    .sort((a, b) => String(b.utcDate).localeCompare(String(a.utcDate)))
-    .slice(0, 100);
+    .sort((a, b) => String(b.utcDate).localeCompare(String(a.utcDate)));
 }
 
 async function competitionHistory(league) {
-  if (league.code === "UNL") return internationalHistory(league);
+  if (league.code === "UNL") return (await internationalHistory(league)).slice(0, 100);
   const from = new Date(Date.now() - 75 * 24 * 3600 * 1000);
   const response = await fetch(ESPN_BASE + "/" + league.slug + "/scoreboard?dates=" + ymd(from) + "-" + ymd(new Date()) + "&limit=500", {
     headers: { Accept: "application/json" },
@@ -1099,7 +1106,7 @@ function competitionGoals(code) {
   if (hit && Date.now() - hit.time < 3 * 3600 * 1000) return hit.promise;
   const league = ESPN_LEAGUES.find(l => l.code === code);
   const promise = (async () => {
-    const evs = await competitionHistory(league), teams = {}, list = [];
+    const evs = league.code === "UNL" ? await internationalHistory(league) : await competitionHistory(league), teams = {}, list = [];
     evs.forEach(e => {
       if (e.homeScore === null || e.awayScore === null) return;
       const rec = { d: String(e.utcDate).slice(0, 10), home: e.home.name, away: e.away.name, hg: e.homeScore, ag: e.awayScore };
@@ -1121,12 +1128,22 @@ async function goalsFallback(name, id, code) {
     if (side && side.all && side.all.n >= 3) cands.push(side);
     else tried.push(label + (side && side.all ? " : seulement " + side.all.n + " match(s)" : " : équipe absente"));
   };
-  try { consider(await goalsFromCsv(name), "Fichiers autres championnats"); } catch (e) { tried.push("Fichiers autres championnats : " + e.message); }
+  const nat = code === "UNL";
+  const tryComp = async () => {
+    try {
+      const d = await withBudget(competitionGoals(code), 25000);
+      if (!d) { tried.push("Historique des sélections : chargement en cours"); return; }
+      const t = d.teams[String(id)] || Object.values(d.teams).find(x => teamTokens(x.name).join(" ") === teamTokens(name).join(" "));
+      consider(t ? goalsSide(name, t, d.league, "goals-comp", "Sélections nationales (matchs des 20 derniers mois)") : null, "Historique des sélections");
+    } catch (e) { tried.push("Historique des sélections : " + e.message); }
+  };
+  if (nat) await tryComp();
+  if (!nat) { try { consider(await goalsFromCsv(name), "Fichiers autres championnats"); } catch (e) { tried.push("Fichiers autres championnats : " + e.message); } }
   if (!cands.some(c => c.all.n >= 6)) {
     try { const r = await goalsFromEspnAll(name, id); consider(r.side, "ESPN toutes compétitions (" + r.diag.events + " matchs lus)"); }
     catch (e) { tried.push("ESPN toutes compétitions : " + e.message); }
   }
-  if (!cands.length && ESPN_LEAGUES.some(l => l.code === code)) {
+  if (!nat && !cands.length && ESPN_LEAGUES.some(l => l.code === code)) {
     try {
       const d = await competitionGoals(code), t = d.teams[String(id)] || Object.values(d.teams).find(x => teamTokens(x.name).join(" ") === teamTokens(name).join(" "));
       consider(t ? goalsSide(name, t, d.league, "goals-comp", "ESPN, " + code) : null, "ESPN compétition");
